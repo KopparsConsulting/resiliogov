@@ -3,6 +3,7 @@ edge-funktion extract-requirements: in {text, document_name, domains, language},
 ut {requirements: [...]}. Prompten är prototypens (den är beprövad mot 418 krav);
 skillnaden är att utdata tvingas följa ett JSON-schema i stället för att
 förlita sig på modellens tool-calling."""
+import re
 from typing import Any
 
 from pydantic import BaseModel
@@ -41,11 +42,10 @@ SCHEMA: dict[str, Any] = {
                     "target_type": {"type": "string", "enum": ["facility", "system"]},
                     "domain_slug": {"type": ["string", "null"]},
                     "source_page": {"type": ["integer", "null"]},
-                    "source_excerpt": {"type": ["string", "null"], "maxLength": 900},
                     "trigger_logic": {"type": ["object", "null"], "additionalProperties": True},
                 },
                 "required": ["chapter_section", "description", "requirement_level", "target_type",
-                             "domain_slug", "source_page", "source_excerpt", "trigger_logic"],
+                             "domain_slug", "source_page", "trigger_logic"],
                 "additionalProperties": False,
             },
         }
@@ -95,9 +95,8 @@ Regler:
    - target_type "system": {", ".join(SYSTEM_KEYS)}
      (system_category: tunnel_traffic_ot, it_infrastructure, physical_security, communication_crisis; linked_to_facility_type: anläggningstyp enligt ovan; booleaner true/false; owner_type/system_type: text)
    - Lämna aldrig tomma värden. Klass- och säkerhetsnivå hanteras separat och ska INTE läggas i trigger_logic.
-6. Beskrivningen ska vara den faktiska kravtexten — VERBATIM från dokumentet, ingen översättning, ingen sammanfattning
+6. Beskrivningen ska vara den faktiska kravtexten — VERBATIM från dokumentet, ingen översättning, ingen sammanfattning. Ta inte med referensnumret i beskrivningen.
 7. SIDNUMMER: texten innehåller markörer i formatet "--- Sida N ---". Sätt source_page till N för den närmast föregående markören där kravet börjar. Gissa aldrig ett sidnummer som inte finns i texten; saknas markör: null.
-8. ORIGINALTEXT: sätt source_excerpt till det ordagranna stycket ur dokumentet som kravet härleds från (inklusive referensnumret, max ~600 tecken). Ingen omskrivning.
 
 DEDUPLICERING:
 - Texten kan innehålla SAMMA krav på flera språk (bilingual EN/FR-standarder).
@@ -113,6 +112,36 @@ def _clean_trigger_logic(tl: dict[str, Any] | None, target_type: str) -> dict[st
     allowed = FACILITY_KEYS if target_type == "facility" else SYSTEM_KEYS
     out = {k: v for k, v in tl.items() if k in allowed and v not in (None, "", [], {})}
     return out or None
+
+
+def _loose_pattern(s: str) -> str:
+    """Regex som matchar texten oavsett radbrytningar/avstavning/mellanrum."""
+    # tillåt avstavning/radbrytning även inuti ord ("risk-\nanalys")
+    return r"[\s\-]*".join("[\\s\\-]*".join(re.escape(c) for c in w) for w in re.findall(r"\w+", s))
+
+
+def find_excerpt(text: str, ref: str, description: str, max_chars: int = 600) -> str | None:
+    """Ordagrant utdrag ur chunktexten: stycket där beskrivningen (eller referensen)
+    står. Räknas fram lokalt i stället för att modellen skriver samma text två
+    gånger – det halverar utdatan och gör att fler krav får plats per anrop."""
+    probe = " ".join(re.findall(r"\w+", description)[:8])
+    m = re.search(_loose_pattern(probe), text, re.IGNORECASE) if probe else None
+    if not m and ref:
+        sec = re.search(r"(\d+\s*[a-z]?)\s*§\s*$", ref)          # "3 kap. 19 §" → "19"
+        tail = sec.group(1).replace(" ", "") if sec else ref
+        m = re.search(r"(?m)^\s*" + _loose_pattern(tail) + r"\s*§" if sec else _loose_pattern(ref), text)
+    if not m:
+        return None
+    start = text.rfind("\n", 0, m.start()) + 1
+    # ta med referensraden om den står strax före
+    prev = text.rfind("\n", 0, max(start - 1, 0)) + 1
+    if start > 0 and re.fullmatch(r"\s*\d+\s*[a-z]?\s*§\s*", text[prev:start]):
+        start = prev
+    # slutar vid tomrad, nästa paragraf eller nästa sidmarkör
+    nxt = re.search(r"\n\s*\n|\n(?=\s*\d+\s*[a-z]?\s*§)|\n(?=--- Sida)", text[m.end():])
+    end = m.end() + nxt.start() if nxt else len(text)
+    excerpt = re.sub(r"[ \t]+", " ", text[start:min(end, start + max_chars)]).strip()
+    return excerpt or None
 
 
 async def extract(req: ExtractRequest) -> dict[str, Any]:
@@ -133,7 +162,7 @@ async def extract(req: ExtractRequest) -> dict[str, Any]:
             "target_type": r.get("target_type") or "system",
             "domain_slug": r.get("domain_slug") or None,
             "source_page": r.get("source_page") or None,
-            "source_excerpt": (r.get("source_excerpt") or None),
+            "source_excerpt": find_excerpt(req.text, ref, r["description"]),
             "trigger_logic": _clean_trigger_logic(r.get("trigger_logic"), r.get("target_type") or "system"),
         })
     return {"requirements": out, "model": llm.MODEL}
