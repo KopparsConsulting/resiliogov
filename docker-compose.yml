@@ -166,7 +166,7 @@ services:
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?sätt CLOUDFLARE_TUNNEL_TOKEN i .env}
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}   # krävs bara med --profile tunnel
     depends_on: [web]
 
 volumes:
