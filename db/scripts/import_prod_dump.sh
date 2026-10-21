@@ -23,6 +23,7 @@ DB="${PGDATABASE:-resiliogov}"
 RAW="${DB}_prodraw"
 RESTORE_IMAGE="${RESTORE_IMAGE:-postgres:18}"
 PSQL="psql -v ON_ERROR_STOP=1 -q"
+export PGOPTIONS="-c client_min_messages=warning"   # tystar TRUNCATE-notiserna
 DUMP_DIR="$(cd "$(dirname "$DUMP")" && pwd)"; DUMP_FILE="$(basename "$DUMP")"
 
 # pg_restore: lokal binär om PG_RESTORE är satt, annars i container mot värdens Postgres
@@ -77,9 +78,7 @@ $PSQL -At -d "$RAW" -c "COPY (SELECT id, lower(email), email_confirmed_at, coale
   | $PSQL -d "$DB" -c "SET session_replication_role = replica" -c "COPY auth.users (id, email, email_confirmed_at, raw_user_meta_data, created_at, last_sign_in_at) FROM STDIN"
 
 # public-tabeller (COPY), triggrar avstängda
-pg_dump -d "$RAW" --data-only --no-owner -n public 2>/dev/null \
-  | sed '1i SET session_replication_role = replica;' \
-  | grep -vE "^SET transaction_timeout" \
+{ echo "SET session_replication_role = replica;"; pg_dump -d "$RAW" --data-only --no-owner -n public 2>/dev/null | grep -vE "^SET transaction_timeout"; } \
   | $PSQL -d "$DB"
 
 echo "4. kontroll"
