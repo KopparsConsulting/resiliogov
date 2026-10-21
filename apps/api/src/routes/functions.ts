@@ -15,7 +15,7 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
-import { withActor } from '../lib/db.js';
+import { withActor, pool } from '../lib/db.js';
 import { requireApproved, requireAdmin } from '../lib/guards.js';
 
 const ids = (v: unknown): string[] =>
@@ -167,6 +167,47 @@ export const functionRoutes: FastifyPluginAsync = async (app) => {
   };
 
   app.post('/functions/extract-requirements', { preHandler: requireApproved }, (req, reply) => forwardToAi('/extract', req, reply));
+
+  // ------------------------------------------------------------------
+  // Inläsning av kravdokument som bakgrundsjobb: filen sparas, jobbet
+  // skapas som användaren, AI-tjänsten bearbetar. Gränssnittet följer
+  // jobbet via /api/rest/ingestion_jobs?id=eq.<id> (RLS: egna jobb).
+  // ------------------------------------------------------------------
+  app.post('/functions/ingest-document', { preHandler: requireApproved }, async (req, reply) => {
+    if (!config.AI_BASE_URL) return reply.code(503).send({ error: 'AI-tjänsten är inte konfigurerad' });
+    const file = await req.file();
+    if (!file) return reply.code(400).send({ error: 'Fil saknas' });
+    const fields = Object.fromEntries(Object.entries(file.fields).map(([k, v]: [string, any]) => [k, Array.isArray(v) ? v[0]?.value : v?.value]));
+    const documentName = String(fields.document_name ?? file.filename ?? 'Okänt dokument').trim();
+    const language = fields.language ? String(fields.language) : null;
+    const pageFrom = fields.page_from ? Number(fields.page_from) : null;
+    const pageTo = fields.page_to ? Number(fields.page_to) : null;
+    const body = await file.toBuffer();
+    const s = req.session!;
+
+    // Filen sparas under jobbets id; jobbet skapas som användaren (loggas i kedjan)
+    const jobId = randomUUID();
+    const filePath = `requirement-documents/ingest/${jobId}.pdf`;
+    await app.fileStore.put(filePath, body, file.mimetype || 'application/pdf');
+    const domains = await withActor({ userId: s.sub, role: 'authenticated' }, async (db) => {
+      await db.query('SELECT public.create_ingestion_job($1, $2, $3, $4)', [jobId, documentName, filePath, language]);
+      const d = await db.query('SELECT name, slug FROM public.security_domains ORDER BY priority_order');
+      return d.rows as { name: string; slug: string }[];
+    });
+
+    try {
+      const res = await fetch(`${config.AI_BASE_URL}/ingest`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': s.sub },
+        body: JSON.stringify({ job_id: jobId, file_path: filePath, document_name: documentName, language, domains, page_from: pageFrom, page_to: pageTo }),
+      });
+      if (!res.ok) throw new Error(`AI-tjänsten svarade ${res.status}`);
+    } catch (e) {
+      req.log.error(e, 'ingest-document: AI-tjänsten nås inte');
+      await pool.query("SELECT public.update_ingestion_job($1, 'failed', NULL, NULL, NULL, NULL, $2, NULL)", [jobId, 'AI-tjänsten kunde inte ta emot jobbet']).catch(() => {});
+      return reply.code(502).send({ error: 'AI-tjänsten kunde inte ta emot jobbet', job_id: jobId });
+    }
+    return { job_id: jobId, file_path: filePath };
+  });
   // Bygger det semantiska indexet för nya/ändrade krav (körs annars periodiskt i AI-tjänsten)
   app.post('/functions/reindex-embeddings', { preHandler: requireAdmin }, (req, reply) => forwardToAi('/reindex', req, reply));
   app.post('/functions/regulatory-chat', { preHandler: requireApproved }, (req, reply) => forwardToAi('/chat', req, reply, true));

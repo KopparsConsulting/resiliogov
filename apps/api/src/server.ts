@@ -4,7 +4,8 @@ import { config } from './config.js';
 import { pool } from './lib/db.js';
 import { authRoutes } from './routes/auth.js';
 import { restRoutes } from './routes/rest.js';
-import { fileRoutes } from './routes/files.js';
+import { fileRoutes, createFileStore } from './routes/files.js';
+import multipart from '@fastify/multipart';
 import { functionRoutes } from './routes/functions.js';
 
 export async function buildServer() {
@@ -16,7 +17,12 @@ export async function buildServer() {
     return { status: 'ok', db, installation_role: config.INSTALLATION_ROLE };
   });
 
+  const fileStore = await createFileStore();
+  app.log.info(`filarkiv: ${config.FILE_STORAGE === 's3' ? 'S3 ' + config.S3_ENDPOINT : 'disk ' + config.FILE_DIR}`);
+
   await app.register(async (api) => {
+    api.decorate('fileStore', fileStore);
+    await api.register(multipart, { limits: { fileSize: 100 * 1024 * 1024 } });
     await api.register(authRoutes);
     await api.register(restRoutes);
     await api.register(fileRoutes);

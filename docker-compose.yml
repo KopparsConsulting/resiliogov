@@ -126,6 +126,7 @@ services:
         condition: service_healthy
     volumes:
       - aicache:/root/.cache
+      - files:/data/files:ro                                           # läser uppladdade PDF:er för inläsningsjobb
       - ${EVAL_DOCS_DIR:-./services/ai/eval/docs}:/srv/eval/docs:ro   # källdokument för modellutvärdering (aldrig i git)
       - ./services/ai/eval/results:/srv/eval/results                  # utvärderingsresultat (delresultat + sammanfattningar)
 

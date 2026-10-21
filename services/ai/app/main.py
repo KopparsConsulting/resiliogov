@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
-from . import chat, embed, extract, llm
+from . import chat, embed, extract, ingest, llm
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -39,6 +39,13 @@ async def regulatory_chat(req: chat.ChatRequest, x_user_id: str = Header()):
     if not req.question.strip():
         raise HTTPException(400, "Frågan saknas eller är ogiltig")
     return StreamingResponse(chat.stream(x_user_id, req), media_type="text/event-stream")
+
+
+@app.post("/ingest")
+async def start_ingest(req: ingest.IngestRequest):
+    """Startar inläsning av ett dokument i bakgrunden. Progress och resultat finns i ingestion_jobs."""
+    asyncio.create_task(ingest.run(req))
+    return {"job_id": req.job_id, "status": "queued"}
 
 
 @app.post("/reindex")

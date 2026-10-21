@@ -7,7 +7,6 @@
  * Trafikverkets egen. Samma API utåt.
  */
 import type { FastifyPluginAsync } from 'fastify';
-import multipart from '@fastify/multipart';
 import { createReadStream } from 'node:fs';
 import { mkdir, writeFile, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
@@ -16,7 +15,7 @@ import { requireApproved } from '../lib/guards.js';
 
 const BUCKETS = new Set(['requirement-documents', 'test-evidence']);
 
-interface Store {
+export interface Store {
   put(key: string, body: Buffer, contentType: string): Promise<void>;
   get(key: string): Promise<{ stream: NodeJS.ReadableStream; size: number; contentType?: string } | null>;
   remove(key: string): Promise<void>;
@@ -64,10 +63,17 @@ async function s3Store(): Promise<Store> {
   };
 }
 
+declare module 'fastify' {
+  interface FastifyInstance { fileStore: Store }
+}
+
+/** Skapas en gång i server.ts och dekoreras på API-instansen (plugins är inkapslade i Fastify). */
+export async function createFileStore(): Promise<Store> {
+  return config.FILE_STORAGE === 's3' ? await s3Store() : localStore(config.FILE_DIR);
+}
+
 export const fileRoutes: FastifyPluginAsync = async (app) => {
-  const store = config.FILE_STORAGE === 's3' ? await s3Store() : localStore(config.FILE_DIR);
-  app.log.info(`filarkiv: ${config.FILE_STORAGE === 's3' ? 'S3 ' + config.S3_ENDPOINT : 'disk ' + config.FILE_DIR}`);
-  await app.register(multipart, { limits: { fileSize: 100 * 1024 * 1024 } });
+  const store = app.fileStore;
 
   const key = (bucket: string, p: string) => {
     if (!BUCKETS.has(bucket)) throw Object.assign(new Error('Okänd hink'), { statusCode: 400 });
