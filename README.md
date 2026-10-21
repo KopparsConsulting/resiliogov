@@ -92,7 +92,10 @@ PGDATABASE=resiliogov bash db/scripts/test.sh
 - [x] AI-tjänst: extraktion med JSON-schema, regelverkschatt; utvärderingsskript mot facit
 - [x] Produktionsdata inläst från Lovable-dumpen 2026-10-21 (`db/scripts/import_prod_dump.sh`); hashkedjan intakt, 9/9 testsviter gröna
 - [x] Hela stacken körd ände till ände på Mac mini 2026-10-21: Keycloak-inloggning → kopplat befintligt konto → Dashboard, anläggningar, aktivitetslogg med kedjan intakt (händelse 3369 = första inloggningen i nya noden)
-- [ ] Domän-/länkförslag och analysassistent i AI-tjänsten; pgvector-sök
+- [x] Semantisk sökning (pgvector + bge-m3, hybrid med nyckelord) i regelverkschatten – 21 okt
+- [ ] Domän-/länkförslag och analysassistent i AI-tjänsten
 - [x] Inre noden på Mac mini (test)
-- [ ] AI-tjänsten igång mot Ollama på minin; första inläsning med lokal modell
+- [x] AI-tjänsten igång mot Ollama på minin (Mistral Small 24B): regelverkschatt med källhänvisning, kravextraktion med schema-styrd JSON verifierad i rökprov – 21 okt
+- [ ] Modellutvärdering mot facit (eval/run.py) på IEC 62443-3-3 och MCFFS 2026:11; PDF-inläsning via gränssnittet
+- [ ] Omrankning av sökträffar; sidopanelen "Tillgängliga källor" ska läsa regelverken från databasen (hårdkodad lista från prototypen)
 - [ ] Yttre noden på Hetzner/Cloudflare
