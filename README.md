@@ -47,6 +47,19 @@ docker compose --profile ai-host up -d ai   # AI-tjänst mot Ollama på värden 
 
 Webb: http://localhost:8080 · API: http://localhost:3000 · Keycloak: http://localhost:8081
 
+### Läsa in prototypens produktionsdata
+
+```sh
+# Dumpen från Lovable (pg_dump custom format, Postgres 18) läggs i ~/data – aldrig i git
+PGDATABASE=resiliogov PG_RESTORE=/path/to/pg18/bin/pg_restore \
+  bash db/scripts/import_prod_dump.sh ~/data/compliancemanager2_261021.backup
+```
+
+Skriptet kopierar alla public-tabeller med triggrar avstängda så att
+`activity_log` behåller sina ursprungliga hashar, och avslutar med
+`verify_activity_chain()`. Dumpen innehåller personuppgifter (e-post, namn)
+och hela sårbarhetsbilden – hantera den som känslig.
+
 ### Bara databasen (utan Docker)
 
 ```sh
@@ -78,7 +91,7 @@ PGDATABASE=resiliogov bash db/scripts/test.sh
 - [x] Webb kopplad till API (shim; inga externa beroenden i bygget)
 - [x] AI-tjänst: extraktion med JSON-schema, regelverkschatt; utvärderingsskript mot facit
 - [ ] Kravpaket nr 1 importerat (från betan)
-- [ ] Produktionsdata (anläggningar, bedömningar, logg) inläst via pg_dump
+- [x] Produktionsdata inläst från Lovable-dumpen 2026-10-21 (`db/scripts/import_prod_dump.sh`); hashkedjan intakt, 9/9 testsviter gröna
 - [ ] Hela stacken körd ände till ände med `docker compose up` (väntar på Docker-miljö: minin)
 - [ ] Domän-/länkförslag och analysassistent i AI-tjänsten; pgvector-sök
 - [ ] Inre noden på Mac mini · yttre noden på Hetzner/Cloudflare

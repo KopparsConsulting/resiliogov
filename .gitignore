@@ -6,3 +6,5 @@ models/
 .DS_Store
 apps/api/dist/
 apps/web/dist/
+*.backup
+*.dump
