@@ -1,3 +1,4 @@
+import { randomUUID } from '@/lib/uuid';
 import { useState, useCallback } from 'react';
 import { functionAuthHeaders } from '@/lib/functionAuth';
 import { API_BASE } from '@/integrations/supabase/client';
@@ -37,7 +38,7 @@ export function useRegulatoryChat() {
 
     // Add user message
     const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       role: 'user',
       content: question,
       timestamp: new Date(),
@@ -60,7 +61,7 @@ export function useRegulatoryChat() {
         return [
           ...prev,
           {
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             role: 'assistant',
             content,
             sources: msgSources,
@@ -171,7 +172,7 @@ export function useRegulatoryChat() {
       setMessages(prev => [
         ...prev,
         {
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           role: 'assistant',
           content: `⚠️ ${errorMessage}`,
           timestamp: new Date(),

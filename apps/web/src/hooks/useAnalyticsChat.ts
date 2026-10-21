@@ -1,3 +1,4 @@
+import { randomUUID } from '@/lib/uuid';
 import { useState, useCallback } from 'react';
 import { functionAuthHeaders } from '@/lib/functionAuth';
 import { API_BASE } from '@/integrations/supabase/client';
@@ -167,7 +168,7 @@ export function useAnalyticsChat() {
 
     // Add user message
     const userMessage: AnalyticsChatMessage = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       role: 'user',
       content: question,
       timestamp: new Date(),
@@ -208,7 +209,7 @@ export function useAnalyticsChat() {
       const gapDetails = extractGapDetails(data.tool_results || []);
       
       const assistantMessage: AnalyticsChatMessage = {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         role: 'assistant',
         content: cleanContent,
         chartConfig: extractedChart || generatedChart,
@@ -229,7 +230,7 @@ export function useAnalyticsChat() {
       setMessages(prev => [
         ...prev,
         {
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           role: 'assistant',
           content: `⚠️ ${errorMessage}`,
           timestamp: new Date(),

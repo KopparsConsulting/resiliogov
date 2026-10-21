@@ -17,6 +17,15 @@
  * mot en administratör i driftmiljön – som ändå kan ändra krav direkt.
  */
 import * as ed from '@noble/ed25519';
+import { sha256 } from '@noble/hashes/sha256';
+import { sha512 } from '@noble/hashes/sha512';
+
+// WebCrypto (crypto.subtle) finns bara i säker kontext (https/localhost). På ett
+// internt nät kan plattformen nås över http, så hashning görs i ren JS, och
+// Ed25519-biblioteket får sin SHA-512 därifrån i stället för från WebCrypto.
+ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
+ed.etc.sha512Async = async (...m) => sha512(ed.etc.concatBytes(...m));
+const toHex = (b: Uint8Array) => Array.from(b).map((x) => x.toString(16).padStart(2, '0')).join('');
 
 export const PACKAGE_FORMAT = 'resiliogov-kravpaket';
 export const KEY_FORMAT = 'resiliogov-signeringsnyckel';
@@ -63,14 +72,12 @@ export function fromBase64(value: string): Uint8Array<ArrayBuffer> {
 }
 
 export async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(text));
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  return toHex(sha256(encoder.encode(text)));
 }
 
 /** Kort, läsbart id för en publik nyckel (första 16 hex-tecken av SHA-256) */
 export async function keyIdFor(publicKeyB64: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', fromBase64(publicKeyB64));
-  return Array.from(new Uint8Array(digest)).slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join('');
+  return toHex(sha256(fromBase64(publicKeyB64)).slice(0, 8));
 }
 
 export async function generateSigningKey(): Promise<SigningKeyFile> {
