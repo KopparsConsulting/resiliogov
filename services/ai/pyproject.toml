@@ -1,0 +1,16 @@
+[project]
+name = "resiliogov-ai"
+version = "0.1.0"
+description = "AI-tjänsten i Resiliogov 2: inläsning av kravdokument, regelverkschatt, förslag. Pratar bara med den lokala modellservern."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.34",
+  "httpx>=0.28",
+  "pydantic>=2.10",
+  "psycopg[binary]>=3.2",
+  "docling>=2.40",
+]
+
+[tool.setuptools]
+packages = ["app"]
