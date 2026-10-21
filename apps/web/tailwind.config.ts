@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Geist", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
-        mono: ["Geist Mono", "ui-monospace", "monospace"],
+        sans: ["Geist Variable", "Geist", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+        mono: ["Geist Mono Variable", "Geist Mono", "ui-monospace", "monospace"],
       },
       fontSize: {
         h1: ["28px", { lineHeight: "1.2", letterSpacing: "-0.025em" }],
