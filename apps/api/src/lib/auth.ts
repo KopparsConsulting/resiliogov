@@ -17,8 +17,21 @@ const SESSION_TTL_SECONDS = 8 * 60 * 60;
 let oidcConfig: oidc.Configuration | null = null;
 export async function getOidc(): Promise<oidc.Configuration> {
   if (!oidcConfig) {
+    // I Compose når webbläsaren Keycloak på t.ex. http://localhost:8081 men
+    // API-containern på http://keycloak:8080. Issuer och redirect använder den
+    // publika adressen; själva anropen skrivs om till den interna.
+    const rewrite: oidc.CustomFetch = (url, options) => {
+      let target = url;
+      if (config.OIDC_INTERNAL_BASE) {
+        const pub = new URL(config.OIDC_ISSUER).origin;
+        if (target.startsWith(pub)) target = config.OIDC_INTERNAL_BASE.replace(/\/$/, '') + target.slice(pub.length);
+      }
+      return fetch(target, { method: options.method, headers: options.headers, body: options.body as any, redirect: options.redirect, signal: options.signal });
+    };
+    const isHttp = config.OIDC_ISSUER.startsWith('http:');
     oidcConfig = await oidc.discovery(new URL(config.OIDC_ISSUER), config.OIDC_CLIENT_ID, config.OIDC_CLIENT_SECRET || undefined,
-      config.OIDC_CLIENT_SECRET ? undefined : oidc.None());
+      config.OIDC_CLIENT_SECRET ? undefined : oidc.None(),
+      { [oidc.customFetch]: rewrite, execute: isHttp ? [oidc.allowInsecureRequests] : [] });
   }
   return oidcConfig;
 }

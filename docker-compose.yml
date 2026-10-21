@@ -67,6 +67,7 @@ services:
       OIDC_ISSUER: ${OIDC_ISSUER:-http://keycloak:8080/realms/resiliogov}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-resiliogov-web}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_INTERNAL_BASE: ${OIDC_INTERNAL_BASE:-}
       JWT_SECRET: ${JWT_SECRET}
       POSTGREST_URL: http://postgrest:3001
       S3_ENDPOINT: http://minio:9000
@@ -108,6 +109,8 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8081}
+      KC_HTTP_ENABLED: "true" 
     volumes:
       - ./deploy/keycloak:/opt/keycloak/data/import:ro
     ports:

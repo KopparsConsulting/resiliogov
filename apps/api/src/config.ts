@@ -10,6 +10,8 @@ const schema = z.object({
   OIDC_ISSUER: z.string().url(),
   OIDC_CLIENT_ID: z.string(),
   OIDC_CLIENT_SECRET: z.string().default(''),
+  /** Om IdP:n nås på en annan adress från API-containern än från webbläsaren (Keycloak i Compose): bas-URL att byta till vid anrop. */
+  OIDC_INTERNAL_BASE: z.string().url().optional(),
   PUBLIC_URL: z.string().url().default('http://localhost:8080'),
   S3_ENDPOINT: z.string().url().optional(),
   S3_BUCKET: z.string().default('resiliogov'),
