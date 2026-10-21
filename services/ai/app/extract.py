@@ -105,7 +105,10 @@ SVENSKA FÖRESKRIFTER (MCFFS, PTSFS, MSBFS m.fl.) – GRANULARITET, följ exakt:
   Paragrafen "3 kap. 4 §" tas ÄNDÅ med som eget krav (med hela texten).
 - Ett "Allmänna råd"-stycke som följer en paragraf är ett EGET krav med referens "3 kap. 4 § allmänna råd",
   requirement_level = recommended, beskrivning = rådets text.
-- En paragraf med fem punkter och allmänna råd ger alltså SJU krav. Hoppa inte över punkter.
+- En paragraf med fem punkter och allmänna råd ger alltså SJU krav. Hoppa inte över punkter – även när
+  listan fortsätter efter en sidmarkör.
+- "Allmänna råd" hör alltid till närmast föregående paragraf; referensen ska ha paragrafnummer ("3 kap. 4 § allmänna råd", aldrig bara "3 kap. allmänna råd").
+- INTE krav: rent beskrivande paragrafer – tillämpningsområde, definitioner (typiskt 1 kap.), ikraftträdande- och övergångsbestämmelser.
 
 DEDUPLICERING:
 - Texten kan innehålla SAMMA krav på flera språk (bilingual EN/FR-standarder).

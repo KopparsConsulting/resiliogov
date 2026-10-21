@@ -12,6 +12,7 @@ PAGE_MARK = re.compile(r"(?=--- Sida \d+ ---)")
 # "3 kap." i början av en rad, ev. följt av rubrik. Inte "enligt 3 kap. 4 §" mitt i en mening.
 CHAPTER_HEADING = re.compile(r"(?m)^\s*(\d+)\s*kap\.\s*(?![\d ]*§)")
 SECTION_ONLY = re.compile(r"^\s*(\d+\s*[a-z]?\s*§)\s*$", re.IGNORECASE)
+SECTION_HEADING = re.compile(r"(?m)^\s*(\d+\s*[a-z]?)\s*§")
 
 
 @dataclass
@@ -19,6 +20,7 @@ class Chunk:
     text: str
     chapter: str | None      # t.ex. "3 kap." – kapitlet som gäller vid chunkens början
     first_page: int | None
+    last_section: str | None = None   # t.ex. "3 kap. 4 §" – senaste paragraf före chunkens början
 
 
 def pages_to_text(pages: dict[int, str]) -> str:
@@ -39,12 +41,18 @@ def split(text: str, size: int) -> list[Chunk]:
 
     out: list[Chunk] = []
     chapter: str | None = None
+    last_section: str | None = None
     for p in parts:
         m = re.search(r"--- Sida (\d+) ---", p)
-        out.append(Chunk(text=p, chapter=chapter, first_page=int(m.group(1)) if m else None))
-        heads = CHAPTER_HEADING.findall(p)
-        if heads:
-            chapter = f"{heads[-1]} kap."
+        out.append(Chunk(text=p, chapter=chapter, first_page=int(m.group(1)) if m else None, last_section=last_section))
+        # gå igenom rubrikerna i ordning så att paragrafen får rätt kapitel
+        events = sorted([(h.start(), "kap", h.group(1)) for h in CHAPTER_HEADING.finditer(p)] +
+                        [(h.start(), "sec", h.group(1)) for h in SECTION_HEADING.finditer(p)])
+        for _, kind, val in events:
+            if kind == "kap":
+                chapter = f"{val} kap."
+            elif chapter:
+                last_section = f"{chapter} {val.replace(' ', '')} §"
     return out
 
 
@@ -52,8 +60,12 @@ def with_context(chunk: Chunk) -> str:
     """Texten som skickas till modellen: kapitelkontext först om chunken börjar mitt i ett kapitel."""
     if not chunk.chapter:
         return chunk.text
-    return (f"[Kapitel som gäller vid textens början: {chunk.chapter} – paragrafer utan egen kapitelrubrik "
-            f"i texten tillhör detta kapitel tills en ny rubrik \"N kap.\" dyker upp.]\n\n{chunk.text}")
+    ctx = (f"[Kapitel som gäller vid textens början: {chunk.chapter} – paragrafer utan egen kapitelrubrik "
+           f"i texten tillhör detta kapitel tills en ny rubrik \"N kap.\" dyker upp.")
+    if chunk.last_section:
+        ctx += (f" Senaste paragraf före textens början: {chunk.last_section} – börjar texten med fortsättningen "
+                f"av en punktlista eller ett \"Allmänna råd\" hör det till den paragrafen.")
+    return ctx + f"]\n\n{chunk.text}"
 
 
 def qualify_reference(ref: str, chunk: Chunk) -> str:
