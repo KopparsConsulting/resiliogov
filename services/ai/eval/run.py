@@ -13,7 +13,7 @@ import psycopg
 
 from app import extract, llm
 
-CHUNK_CHARS = 15000  # samma som prototypen
+CHUNK_CHARS = int(os.environ.get("EVAL_CHUNK_CHARS", "8000"))  # prototypen: 15000; mindre = snabbare och säkrare på CPU/Apple Silicon
 
 
 def pdf_to_text_with_pages(pdf: Path) -> str:
@@ -60,19 +60,34 @@ async def main() -> None:
     ap.add_argument("--source", required=True, help="document_name i requirement_sources")
     ap.add_argument("--pdf", required=True, type=Path)
     ap.add_argument("--language", default=None)
+    ap.add_argument("--resume", action="store_true", help="fortsätt från sparade delresultat")
     args = ap.parse_args()
 
     truth = facit(args.source)
     truth_by_ref = {norm(t["chapter_section"]): t for t in truth}
     text = pdf_to_text_with_pages(args.pdf)
+    parts = chunks(text)
+    # Delresultat per chunk så att en avbruten körning kan återupptas med --resume
+    out = Path("eval/results"); out.mkdir(exist_ok=True)
+    slug = f"{llm.MODEL.replace('/', '_').replace(':', '-')}-{re.sub(r'[^a-z0-9]+', '-', args.source.lower())}"
+    partial = out / f"{slug}.partial.json"
+    state = json.loads(partial.read_text()) if args.resume and partial.exists() else {"chunks": {}, "seconds": 0.0}
     t0 = time.time()
-    found: dict[str, dict] = {}
-    for i, chunk in enumerate(chunks(text), 1):
+    for i, chunk in enumerate(parts, 1):
+        if str(i) in state["chunks"]:
+            print(f"chunk {i}: {len(state['chunks'][str(i)])} krav (sparat)")
+            continue
+        tc = time.time()
         res = await extract.extract(extract.ExtractRequest(text=chunk, document_name=args.source, language=args.language))
-        for r in res["requirements"]:
+        state["chunks"][str(i)] = res["requirements"]
+        state["seconds"] += time.time() - tc
+        partial.write_text(json.dumps(state, ensure_ascii=False))
+        print(f"chunk {i}/{len(parts)}: {len(res['requirements'])} krav ({time.time() - tc:.0f} s)")
+    found: dict[str, dict] = {}
+    for i in sorted(state["chunks"], key=int):
+        for r in state["chunks"][i]:
             found.setdefault(norm(r["chapter_section"]), r)
-        print(f"chunk {i}: {len(res['requirements'])} krav (totalt {len(found)})")
-    elapsed = time.time() - t0
+    elapsed = state["seconds"]
 
     hits = [ref for ref in found if ref in truth_by_ref]
     page_ok = sum(1 for ref in hits if found[ref].get("source_page") == truth_by_ref[ref]["source_page"])
@@ -86,9 +101,8 @@ async def main() -> None:
         "missed": sorted(set(truth_by_ref) - set(found))[:50],
         "extra": sorted(set(found) - set(truth_by_ref))[:50],
     }
-    out = Path("eval/results"); out.mkdir(exist_ok=True)
-    name = f"{llm.MODEL.replace('/', '_').replace(':', '-')}-{re.sub(r'[^a-z0-9]+', '-', args.source.lower())}-{summary['date']}.json"
-    (out / name).write_text(json.dumps(summary, ensure_ascii=False, indent=2))
+    (out / f"{slug}-{summary['date']}.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
+    partial.unlink(missing_ok=True)
     print(json.dumps({k: v for k, v in summary.items() if k not in ('missed', 'extra')}, ensure_ascii=False, indent=2))
 
 

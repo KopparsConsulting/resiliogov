@@ -11,7 +11,7 @@ BASE_URL = os.environ.get("LLM_BASE_URL", "http://host.docker.internal:11434/v1"
 MODEL = os.environ.get("LLM_MODEL", "mistral-small:24b")
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "bge-m3")
 API_KEY = os.environ.get("LLM_API_KEY", "lokal")
-TIMEOUT = httpx.Timeout(600.0, connect=10.0)
+TIMEOUT = httpx.Timeout(float(os.environ.get("LLM_TIMEOUT_SECONDS", "1800")), connect=10.0)
 
 
 def _headers() -> dict[str, str]:
@@ -26,11 +26,17 @@ async def chat_json(system: str, user: str, schema: dict[str, Any], *, temperatu
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         "response_format": {"type": "json_schema", "json_schema": {"name": "svar", "schema": schema, "strict": True}},
     }
-    async with httpx.AsyncClient(timeout=TIMEOUT) as c:
-        r = await c.post(f"{BASE_URL}/chat/completions", headers=_headers(), json=body)
-        r.raise_for_status()
-        content = r.json()["choices"][0]["message"]["content"]
-    return json.loads(content)
+    last: Exception | None = None
+    for attempt in range(2):   # ett omförsök vid timeout/avbrott – modellservern kan vara upptagen
+        try:
+            async with httpx.AsyncClient(timeout=TIMEOUT) as c:
+                r = await c.post(f"{BASE_URL}/chat/completions", headers=_headers(), json=body)
+                r.raise_for_status()
+                content = r.json()["choices"][0]["message"]["content"]
+            return json.loads(content)
+        except (httpx.TimeoutException, httpx.TransportError, json.JSONDecodeError) as e:
+            last = e
+    raise RuntimeError(f"modellanropet misslyckades efter omförsök: {last}")
 
 
 async def chat_stream(messages: list[dict[str, str]], *, temperature: float = 0.2) -> AsyncIterator[str]:

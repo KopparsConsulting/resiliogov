@@ -127,6 +127,7 @@ services:
     volumes:
       - aicache:/root/.cache
       - ${EVAL_DOCS_DIR:-./services/ai/eval/docs}:/srv/eval/docs:ro   # källdokument för modellutvärdering (aldrig i git)
+      - ./services/ai/eval/results:/srv/eval/results                  # utvärderingsresultat (delresultat + sammanfattningar)
 
   # Linux + NVIDIA: modellservern i container. På Mac mini används Ollama på
   # värden i stället (profil ai-host).
