@@ -289,7 +289,10 @@ const storage = { from: storageFrom };
 // PostgREST
 // ---------------------------------------------------------------------------
 
-const postgrest = new PostgrestClient<Database>(`${API_BASE}/rest`, {
+// postgrest-js bygger adresser med new URL(), som kräver en absolut bas.
+const REST_URL = new URL(`${API_BASE}/rest`, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').href;
+
+const postgrest = new PostgrestClient<Database>(REST_URL, {
   fetch: apiFetch,
   headers: { Accept: 'application/json' },
 });
