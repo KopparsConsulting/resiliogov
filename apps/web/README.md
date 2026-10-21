@@ -49,6 +49,7 @@ Enda miljövariabeln är `VITE_API_BASE` (standard `/api`). Inga `VITE_SUPABASE_
   `lib/export/fetchExportData`) går till `/api/functions/<namn>` med cookies;
   `functionAuthHeaders()` returnerar `{}`.
 - **Inga externa CDN:er.** Geist/Geist Mono laddas lokalt via
-  `@fontsource-variable/*`; pdf.js-workern bundlas från `pdfjs-dist`.
+  `@fontsource-variable/*`. PDF-inläsning sker som bakgrundsjobb i API:t
+  (`/api/functions/ingest-document`), inte med pdf.js i webbläsaren.
 - **Borttaget:** sidan Driftsspecifikation (`/deployment`, RFI-text) och
   testet `migrations.test.ts` (gällde prototypens migreringskataloger).

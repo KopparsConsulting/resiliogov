@@ -793,6 +793,57 @@ export type Database = {
           },
         ]
       }
+      ingestion_jobs: {
+        Row: {
+          created_at: string
+          created_by: string
+          document_name: string
+          done_chunks: number
+          error: string | null
+          file_path: string
+          id: string
+          language: string | null
+          model: string | null
+          result: Json | null
+          status: string
+          total_chunks: number | null
+          total_pages: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          document_name: string
+          done_chunks?: number
+          error?: string | null
+          file_path: string
+          id?: string
+          language?: string | null
+          model?: string | null
+          result?: Json | null
+          status?: string
+          total_chunks?: number | null
+          total_pages?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          document_name?: string
+          done_chunks?: number
+          error?: string | null
+          file_path?: string
+          id?: string
+          language?: string | null
+          model?: string | null
+          result?: Json | null
+          status?: string
+          total_chunks?: number | null
+          total_pages?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       information_systems: {
         Row: {
           classification_source: Database["public"]["Enums"]["classification_source"]

@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, API_BASE, apiFetch } from '@/integrations/supabase/client';
 import { useDomains } from '@/hooks/useDomains';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -118,42 +118,116 @@ function dedupRequirements(reqs: ExtractedRequirement[]): ExtractedRequirement[]
   return Array.from(seen.values());
 }
 
-async function loadPdfPageCount(file: File): Promise<number> {
-  const pdfjsLib = await import('pdfjs-dist');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  return pdf.numPages;
+// ---------------------------------------------------------------------------
+// PDF-inläsning som bakgrundsjobb i API:t/AI-tjänsten
+// ---------------------------------------------------------------------------
+
+const JOB_POLL_INTERVAL_MS = 2000;
+const STORAGE_BUCKET = 'requirement-documents';
+
+type IngestionJobStatus = 'queued' | 'parsing' | 'extracting' | 'done' | 'failed';
+
+interface IngestionJobRow {
+  id: string;
+  status: IngestionJobStatus;
+  total_chunks: number | null;
+  done_chunks: number;
+  total_pages: number | null;
+  model: string | null;
+  error: string | null;
+  result: unknown;
 }
 
-async function extractTextFromPdf(
-  file: File,
-  fromPage: number,
-  toPage: number,
-  onPageProgress?: (current: number, total: number) => void,
-): Promise<string> {
-  const pdfjsLib = await import('pdfjs-dist');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+interface IngestionResultRequirement {
+  chapter_section: string;
+  description: string;
+  requirement_level: ExtractedRequirement['requirement_level'];
+  target_type: ExtractedRequirement['target_type'];
+  domain_slug: string | null;
+  source_page: number | null;
+  source_excerpt: string | null;
+  trigger_logic: Record<string, unknown> | null;
+}
 
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const pages: string[] = [];
+interface IngestionResult {
+  requirements: IngestionResultRequirement[];
+  model?: string | null;
+  pages?: number;
+  chunks?: number;
+}
 
-  const start = Math.max(1, fromPage);
-  const end = Math.min(pdf.numPages, toPage);
-  const total = end - start + 1;
+interface IngestResponse {
+  job_id: string;
+  file_path: string;
+}
 
-  for (let i = start; i <= end; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const text = content.items
-      .map((item: any) => item.str)
-      .join(' ');
-    pages.push(`--- Sida ${i} ---\n${text}`);
-    onPageProgress?.(i - start + 1, total);
+/** Skickar PDF:en till API:t som startar ett inläsningsjobb. Filen sparas av API:t. */
+async function submitIngestJob(params: {
+  file: File;
+  documentName: string;
+  language: LanguageFilter;
+  pageFrom: number | null;
+  pageTo: number | null;
+}): Promise<IngestResponse> {
+  const form = new FormData();
+  form.append('file', params.file, params.file.name);
+  form.append('document_name', params.documentName);
+  form.append('language', params.language === 'all' ? '' : params.language);
+  if (params.pageFrom != null) form.append('page_from', String(params.pageFrom));
+  if (params.pageTo != null) form.append('page_to', String(params.pageTo));
+
+  const res = await apiFetch(`${API_BASE}/functions/ingest-document`, { method: 'POST', body: form });
+  const text = await res.text();
+  let parsed: unknown = null;
+  if (text) {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = text;
+    }
   }
+  const obj = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
+  if (!res.ok) {
+    const msg =
+      (obj && typeof obj.error === 'string' ? obj.error : null) ??
+      (typeof parsed === 'string' && parsed ? parsed : `Kunde inte starta inläsningen (${res.status})`);
+    throw new Error(msg);
+  }
+  if (!obj || typeof obj.job_id !== 'string' || typeof obj.file_path !== 'string') {
+    throw new Error('Oväntat svar från API:t vid inläsning');
+  }
+  return { job_id: obj.job_id, file_path: obj.file_path };
+}
 
-  return pages.join('\n\n');
+/** Jobbets fil lagras som `<bucket>/<objekt>`; dokumentlänken byggs från objektsökvägen i hinken. */
+function documentUrlFromStoredPath(filePath: string): string {
+  const prefix = `${STORAGE_BUCKET}/`;
+  const objectPath = filePath.startsWith(prefix) ? filePath.slice(prefix.length) : filePath;
+  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(objectPath);
+  return data.publicUrl;
+}
+
+function progressFromJob(job: IngestionJobRow): { current: number; total: number; label: string } {
+  switch (job.status) {
+    case 'queued':
+      return { current: 0, total: 0, label: 'Köar…' };
+    case 'parsing':
+      return { current: 0, total: 0, label: 'Läser PDF…' };
+    case 'extracting': {
+      const total = job.total_chunks ?? 0;
+      const current = Math.min(job.done_chunks ?? 0, total);
+      return { current, total, label: `Tolkar krav (${current} av ${total})` };
+    }
+    case 'done':
+      return { current: job.total_chunks ?? 1, total: job.total_chunks ?? 1, label: 'Klart' };
+    case 'failed':
+      return { current: 0, total: 0, label: 'Misslyckades' };
+  }
+}
+
+function parseOptionalPage(value: string): number | null {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 export function RequirementImportWizard({ open, onOpenChange }: Props) {
@@ -170,14 +244,16 @@ export function RequirementImportWizard({ open, onOpenChange }: Props) {
   const [documentName, setDocumentName] = useState('');
   const [category, setCategory] = useState<string>('');
   const [language, setLanguage] = useState<LanguageFilter>('all');
-  const [totalPages, setTotalPages] = useState<number>(0);
-  const [pageFrom, setPageFrom] = useState<number>(1);
-  const [pageTo, setPageTo] = useState<number>(1);
-  const [isLoadingMeta, setIsLoadingMeta] = useState(false);
+  const [pageFrom, setPageFrom] = useState<string>('');
+  const [pageTo, setPageTo] = useState<string>('');
   const [extractedReqs, setExtractedReqs] = useState<ExtractedRequirement[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0, label: '' });
+  // Bakgrundsjobbet för PDF-inläsning: id att följa, var filen sparades och vilken modell som tolkade
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [storedFilePath, setStoredFilePath] = useState<string | null>(null);
+  const [jobModel, setJobModel] = useState<string | null>(null);
 
   const reset = useCallback(() => {
     setStep(1);
@@ -190,15 +266,105 @@ export function RequirementImportWizard({ open, onOpenChange }: Props) {
     setDocumentName('');
     setCategory('');
     setLanguage('all');
-    setTotalPages(0);
-    setPageFrom(1);
-    setPageTo(1);
-    setIsLoadingMeta(false);
+    setPageFrom('');
+    setPageTo('');
     setExtractedReqs([]);
     setIsProcessing(false);
     setIsSaving(false);
     setProgress({ current: 0, total: 0, label: '' });
+    setJobId(null);
+    setStoredFilePath(null);
+    setJobModel(null);
   }, []);
+
+  // Följer inläsningsjobbet var 2:a sekund tills det är klart eller misslyckats.
+  // Stängs dialogen avbryts pollningen; jobbet fortsätter på servern.
+  useEffect(() => {
+    if (!jobId || !open) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const finish = () => {
+      setJobId(null);
+      setIsProcessing(false);
+    };
+
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const { data, error } = await supabase
+          .from('ingestion_jobs')
+          .select('*')
+          .eq('id', jobId)
+          .single();
+        if (cancelled) return;
+        if (error) throw new Error(error.message);
+        const job = data as unknown as IngestionJobRow;
+
+        setProgress(progressFromJob(job));
+        if (job.model) setJobModel(job.model);
+
+        if (job.status === 'done') {
+          const result = (job.result ?? {}) as Partial<IngestionResult>;
+          const raw = Array.isArray(result.requirements) ? result.requirements : [];
+          const allReqs: ExtractedRequirement[] = raw.map((r) => {
+            const page = Number(r.source_page);
+            return {
+              chapter_section: r.chapter_section ?? '',
+              description: r.description ?? '',
+              requirement_level: r.requirement_level,
+              target_type: r.target_type,
+              domain_slug: r.domain_slug ?? undefined,
+              trigger_logic: r.trigger_logic ?? undefined,
+              source_page: Number.isFinite(page) && page > 0 ? page : null,
+              source_excerpt: typeof r.source_excerpt === 'string' && r.source_excerpt.trim()
+                ? r.source_excerpt.trim()
+                : null,
+              selected: true,
+            };
+          });
+          const deduped = dedupRequirements(allReqs);
+          if (result.model) setJobModel(result.model);
+
+          if (deduped.length === 0) {
+            toast.warning('Inga krav kunde extraheras från dokumentet');
+            setStep(1);
+          } else {
+            setExtractedReqs(deduped);
+            setStep(3);
+            const dupRemoved = allReqs.length - deduped.length;
+            toast.success(
+              `${deduped.length} unika krav extraherade${dupRemoved > 0 ? ` (${dupRemoved} dubbletter borttagna)` : ''}`
+            );
+          }
+          finish();
+          return;
+        }
+
+        if (job.status === 'failed') {
+          toast.error(job.error || 'Inläsningen misslyckades');
+          setStep(1);
+          finish();
+          return;
+        }
+
+        timer = setTimeout(poll, JOB_POLL_INTERVAL_MS);
+      } catch (err: any) {
+        if (cancelled) return;
+        console.error('Kunde inte läsa inläsningsjobbet:', err);
+        toast.error(err.message || 'Kunde inte följa inläsningen');
+        setStep(1);
+        finish();
+      }
+    };
+
+    void poll();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [jobId, open]);
 
   const handleFetchUrl = async () => {
     if (!lawUrl.trim()) {
@@ -233,7 +399,7 @@ export function RequirementImportWizard({ open, onOpenChange }: Props) {
     );
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f || f.type !== 'application/pdf') return;
 
@@ -241,19 +407,43 @@ export function RequirementImportWizard({ open, onOpenChange }: Props) {
     if (!documentName) {
       setDocumentName(f.name.replace('.pdf', ''));
     }
+  };
 
-    setIsLoadingMeta(true);
-    setTotalPages(0);
+  /** PDF: skicka filen till API:t och låt pollningen (effekten ovan) driva stegen. */
+  const handleIngestPdf = async () => {
+    const from = parseOptionalPage(pageFrom);
+    const to = parseOptionalPage(pageTo);
+    if ((pageFrom.trim() && from === null) || (pageTo.trim() && to === null)) {
+      toast.error('Sidnummer måste vara positiva heltal');
+      return;
+    }
+    if (from !== null && to !== null && from > to) {
+      toast.error('"Från sida" kan inte vara större än "Till sida"');
+      return;
+    }
+
+    setStep(2);
+    setIsProcessing(true);
+    setJobModel(null);
+    setStoredFilePath(null);
+    setProgress({ current: 0, total: 0, label: 'Laddar upp PDF…' });
+
     try {
-      const pages = await loadPdfPageCount(f);
-      setTotalPages(pages);
-      setPageFrom(1);
-      setPageTo(pages);
+      const { job_id, file_path } = await submitIngestJob({
+        file: file!,
+        documentName,
+        language,
+        pageFrom: from,
+        pageTo: to,
+      });
+      setStoredFilePath(file_path);
+      setProgress({ current: 0, total: 0, label: 'Köar…' });
+      setJobId(job_id);
     } catch (err: any) {
-      console.error('Failed to read PDF metadata:', err);
-      toast.error('Kunde inte läsa PDF:en');
-    } finally {
-      setIsLoadingMeta(false);
+      console.error('Ingest error:', err);
+      toast.error(err.message || 'Kunde inte starta inläsningen');
+      setStep(1);
+      setIsProcessing(false);
     }
   };
 
@@ -270,37 +460,24 @@ export function RequirementImportWizard({ open, onOpenChange }: Props) {
       toast.error('Välj minst ett kapitel att bearbeta');
       return;
     }
-    if (sourceMode === 'pdf' && totalPages > 0 && (pageFrom < 1 || pageTo > totalPages || pageFrom > pageTo)) {
-      toast.error(`Sidintervall måste vara mellan 1 och ${totalPages}`);
+
+    if (sourceMode === 'pdf') {
+      await handleIngestPdf();
       return;
     }
 
     setStep(2);
     setIsProcessing(true);
-    setProgress({ current: 0, total: 0, label: sourceMode === 'pdf' ? 'Läser PDF...' : 'Förbereder lagtext...' });
+    setProgress({ current: 0, total: 0, label: 'Förbereder lagtext...' });
 
     try {
-      let rawText: string;
+      const rawText = lawChapters
+        .filter(c => selectedChapters.includes(c.label))
+        .map(c => c.text)
+        .join('\n\n');
 
-      if (sourceMode === 'pdf') {
-        const effectiveFrom = totalPages > 0 ? pageFrom : 1;
-        const effectiveTo = totalPages > 0 ? pageTo : 999999;
-        rawText = await extractTextFromPdf(file!, effectiveFrom, effectiveTo, (cur, tot) => {
-          setProgress({ current: cur, total: tot, label: `Läser sida ${cur} av ${tot}` });
-        });
-
-        if (!rawText.trim()) {
-          throw new Error('Kunde inte extrahera text från PDF:en. Dokumentet kan vara skannat/bildbas.');
-        }
-      } else {
-        rawText = lawChapters
-          .filter(c => selectedChapters.includes(c.label))
-          .map(c => c.text)
-          .join('\n\n');
-
-        if (!rawText.trim()) {
-          throw new Error('Valda kapitel innehåller ingen text.');
-        }
+      if (!rawText.trim()) {
+        throw new Error('Valda kapitel innehåller ingen text.');
       }
 
       // Apply language filtering before chunking
@@ -470,21 +647,15 @@ export function RequirementImportWizard({ open, onOpenChange }: Props) {
         return;
       }
 
-      // 1. Resolve the source document URL — uploaded PDF or the public law page
+      // 1. Resolve the source document URL — the PDF already stored by the
+      //    ingest job, or the public law page
       let documentUrl: string;
 
       if (sourceMode === 'pdf') {
-        const filePath = `imports/${Date.now()}_${file!.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from('requirement-documents')
-          .upload(filePath, file!);
-
-        if (uploadError) throw uploadError;
-
-        const { data: urlData } = supabase.storage
-          .from('requirement-documents')
-          .getPublicUrl(filePath);
-        documentUrl = urlData.publicUrl;
+        if (!storedFilePath) {
+          throw new Error('Dokumentets lagringsplats saknas — kör inläsningen igen.');
+        }
+        documentUrl = documentUrlFromStoredPath(storedFilePath);
       } else {
         documentUrl = lawUrl.trim();
       }
@@ -640,16 +811,15 @@ export function RequirementImportWizard({ open, onOpenChange }: Props) {
                 {file && (
                   <p className="text-xs text-muted-foreground mt-1">
                     {file.name} ({(file.size / 1024 / 1024).toFixed(1)} MB)
-                    {isLoadingMeta && ' — läser sidantal...'}
                   </p>
                 )}
               </div>
             )}
 
-            {sourceMode === 'pdf' && totalPages > 0 && (
+            {sourceMode === 'pdf' && file && (
               <div className="rounded-md border bg-muted/30 p-3 space-y-3">
                 <p className="text-sm">
-                  Detta dokument består av <strong>{totalPages} sidor</strong>. Vilka vill du bearbeta?
+                  Vilka sidor vill du bearbeta? Lämna tomt för hela dokumentet.
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -657,9 +827,9 @@ export function RequirementImportWizard({ open, onOpenChange }: Props) {
                     <Input
                       type="number"
                       min={1}
-                      max={totalPages}
                       value={pageFrom}
-                      onChange={e => setPageFrom(Math.max(1, Math.min(totalPages, parseInt(e.target.value) || 1)))}
+                      placeholder="1"
+                      onChange={e => setPageFrom(e.target.value)}
                       className="mt-1 h-9"
                     />
                   </div>
@@ -668,9 +838,9 @@ export function RequirementImportWizard({ open, onOpenChange }: Props) {
                     <Input
                       type="number"
                       min={1}
-                      max={totalPages}
                       value={pageTo}
-                      onChange={e => setPageTo(Math.max(1, Math.min(totalPages, parseInt(e.target.value) || totalPages)))}
+                      placeholder="sista"
+                      onChange={e => setPageTo(e.target.value)}
                       className="mt-1 h-9"
                     />
                   </div>
@@ -732,9 +902,13 @@ export function RequirementImportWizard({ open, onOpenChange }: Props) {
                 </p>
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">{progress.label || 'Läser PDF och förbereder text...'}</p>
+              <p className="text-xs text-muted-foreground">{progress.label || 'Förbereder...'}</p>
             )}
-            <p className="text-xs text-muted-foreground">Stora dokument kan ta flera minuter</p>
+            <p className="text-xs text-muted-foreground">
+              {sourceMode === 'pdf'
+                ? 'Inläsningen körs på servern och kan ta flera minuter för stora dokument'
+                : 'Stora dokument kan ta flera minuter'}
+            </p>
           </div>
         )}
 
@@ -744,6 +918,9 @@ export function RequirementImportWizard({ open, onOpenChange }: Props) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm">{selectedCount} av {extractedReqs.length} krav valda för import</p>
+                {sourceMode === 'pdf' && jobModel && (
+                  <p className="text-xs text-muted-foreground">Tolkat av {jobModel} lokalt</p>
+                )}
                 {missingPageCount > 0 && (
                   <p className="text-xs text-status-warning dark:text-status-warning">
                     {missingPageCount} krav saknar sidhänvisning — fyll i sidan för att få direktlänk i dokumentet.
