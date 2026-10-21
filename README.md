@@ -41,7 +41,7 @@ funktioner som prototypen anropade via RPC.
 
 ```sh
 cp .env.example .env            # fyll i lösenord
-docker compose --profile dev up -d          # db + api + web + minio + keycloak
+docker compose --profile dev up -d          # db + postgrest + api + web + keycloak
 docker compose --profile ai-host up -d ai   # AI-tjänst mot Ollama på värden (Mac mini)
 ```
 

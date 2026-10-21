@@ -13,7 +13,10 @@ const schema = z.object({
   /** Om IdP:n nås på en annan adress från API-containern än från webbläsaren (Keycloak i Compose): bas-URL att byta till vid anrop. */
   OIDC_INTERNAL_BASE: z.string().url().optional(),
   PUBLIC_URL: z.string().url().default('http://localhost:8080'),
+  FILE_STORAGE: z.enum(['local', 's3']).default('local'),
+  FILE_DIR: z.string().default('/data/files'),
   S3_ENDPOINT: z.string().url().optional(),
+  S3_REGION: z.string().optional(),
   S3_BUCKET: z.string().default('resiliogov'),
   S3_ACCESS_KEY: z.string().optional(),
   S3_SECRET_KEY: z.string().optional(),
@@ -23,5 +26,7 @@ const schema = z.object({
   BOOTSTRAP_ADMIN_EMAILS: z.string().default(''),
 });
 
-export const config = schema.parse(process.env);
+// Tomma miljövariabler (t.ex. S3_ENDPOINT= i Compose) räknas som ej satta
+const env = Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== ''));
+export const config = schema.parse(env);
 export type Config = typeof config;

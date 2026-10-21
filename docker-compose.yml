@@ -54,8 +54,6 @@ services:
         condition: service_healthy
       postgrest:
         condition: service_started
-      minio:
-        condition: service_started
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -70,11 +68,15 @@ services:
       OIDC_INTERNAL_BASE: ${OIDC_INTERNAL_BASE:-}
       JWT_SECRET: ${JWT_SECRET}
       POSTGREST_URL: http://postgrest:3001
-      S3_ENDPOINT: http://minio:9000
-      S3_BUCKET: resiliogov
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-resiliogov}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?sätt MINIO_ROOT_PASSWORD i .env}
+      FILE_STORAGE: ${FILE_STORAGE:-local}   # local (volym) | s3 (egen objektlagring, sätt S3_* i .env)
+      FILE_DIR: /data/files
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_BUCKET: ${S3_BUCKET:-resiliogov}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
       AI_BASE_URL: ${AI_BASE_URL:-http://ai:8000}
+    volumes:
+      - files:/data/files
     ports:
       - "${API_PORT_HOST:-3000}:3000"
 
@@ -88,17 +90,6 @@ services:
     ports:
       - "${WEB_PORT_HOST:-8080}:80"
 
-  minio:
-    image: minio/minio:latest   # låses till en tagg när driftpaketet fryses
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-resiliogov}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?sätt MINIO_ROOT_PASSWORD i .env}
-    volumes:
-      - miniodata:/data
-    ports:
-      - "${MINIO_CONSOLE_PORT_HOST:-9001}:9001"
 
   # Utveckling: lokal identitetsleverantör. I drift pekar OIDC_ISSUER på
   # Trafikverkets IdP (Entra ID/ADFS) och den här tjänsten startas inte.
@@ -171,5 +162,5 @@ services:
 
 volumes:
   dbdata:
-  miniodata:
+  files:
   aicache:
