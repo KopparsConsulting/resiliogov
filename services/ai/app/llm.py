@@ -12,6 +12,9 @@ MODEL = os.environ.get("LLM_MODEL", "mistral-small:24b")
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "bge-m3")
 API_KEY = os.environ.get("LLM_API_KEY", "lokal")
 TIMEOUT = httpx.Timeout(float(os.environ.get("LLM_TIMEOUT_SECONDS", "1800")), connect=10.0)
+# Tak för svarslängd: utan det kan schema-styrd avkodning fastna i en lång sträng tills
+# kontextfönstret är fullt (tiotals minuter). 6000 tokens räcker för ~30 krav med utdrag.
+MAX_TOKENS = int(os.environ.get("LLM_MAX_TOKENS", "6000"))
 
 
 def _headers() -> dict[str, str]:
@@ -23,6 +26,7 @@ async def chat_json(system: str, user: str, schema: dict[str, Any], *, temperatu
     body = {
         "model": MODEL,
         "temperature": temperature,
+        "max_tokens": MAX_TOKENS,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         "response_format": {"type": "json_schema", "json_schema": {"name": "svar", "schema": schema, "strict": True}},
     }
