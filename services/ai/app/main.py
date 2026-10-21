@@ -1,11 +1,25 @@
 """AI-tjänsten. Nås bara från API:t (X-User-Id sätts där efter inloggning).
 Inga utgående anrop utom till LLM_BASE_URL."""
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
-from . import chat, extract, llm
+from . import chat, embed, extract, llm
 
-app = FastAPI(title="Resiliogov AI", docs_url=None, redoc_url=None)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    task = asyncio.create_task(embed.run_forever())   # semantiskt index i bakgrunden
+    yield
+    task.cancel()
+
+
+app = FastAPI(title="Resiliogov AI", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
 @app.get("/health")
@@ -25,6 +39,12 @@ async def regulatory_chat(req: chat.ChatRequest, x_user_id: str = Header()):
     if not req.question.strip():
         raise HTTPException(400, "Frågan saknas eller är ogiltig")
     return StreamingResponse(chat.stream(x_user_id, req), media_type="text/event-stream")
+
+
+@app.post("/reindex")
+async def reindex():
+    """Beräknar vektorer för krav som saknar aktuell. Anropas av API:t efter import."""
+    return {"indexed": await embed.index_pending()}
 
 
 @app.post("/analytics")

@@ -13,7 +13,11 @@ from typing import AsyncIterator
 import psycopg
 from pydantic import BaseModel
 
-from . import llm
+import logging
+
+from . import embed, llm
+
+log = logging.getLogger("resiliogov.chat")
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 
@@ -71,11 +75,34 @@ def _score(req: dict, terms: list[str]) -> int:
     return s
 
 
-def retrieve(user_id: str, question: str, source_ids: list[str] | None, limit: int = 10) -> list[dict]:
+def retrieve_keyword(user_id: str, question: str, source_ids: list[str] | None, limit: int = 10) -> list[dict]:
     terms = _terms(question)
     reqs = _fetch_requirements(user_id, source_ids)
     scored = sorted(((_score(r, terms), r) for r in reqs), key=lambda x: x[0], reverse=True)
     return [r for s, r in scored[:limit] if s > 0]
+
+
+async def retrieve(user_id: str, question: str, source_ids: list[str] | None, limit: int = 10) -> list[dict]:
+    """Hybrid: semantisk sökning (pgvector) och nyckelord slås ihop med
+    reciprocal rank fusion. Finns inget index ännu används bara nyckelord."""
+    keyword = retrieve_keyword(user_id, question, source_ids, limit)
+    try:
+        semantic = await embed.search(user_id, question, source_ids, limit + 5)
+    except Exception as e:
+        log.warning("semantisk sökning otillgänglig, använder nyckelord: %s", e)
+        semantic = []
+    if not semantic:
+        return keyword
+    scores: dict[str, float] = {}
+    by_id: dict[str, dict] = {}
+    for rank, r in enumerate(semantic):
+        scores[r["id"]] = scores.get(r["id"], 0) + 1 / (60 + rank)
+        by_id[r["id"]] = r
+    for rank, r in enumerate(keyword):
+        scores[r["id"]] = scores.get(r["id"], 0) + 1 / (60 + rank)
+        by_id.setdefault(r["id"], r)
+    best = sorted(scores, key=scores.get, reverse=True)[:limit]
+    return [by_id[i] for i in best]
 
 
 def _context(sources: list[dict]) -> str:
@@ -107,7 +134,7 @@ REGLER:
 
 async def stream(user_id: str, req: ChatRequest) -> AsyncIterator[str]:
     source_ids = (req.context_filter or {}).get("sources") or None
-    sources = retrieve(user_id, req.question, source_ids)
+    sources = await retrieve(user_id, req.question, source_ids)
     yield "data: " + json.dumps({"type": "sources", "data": sources}, ensure_ascii=False) + "\n\n"
     messages = [{"role": "system", "content": SYSTEM + _context(sources)}, {"role": "user", "content": req.question}]
     async for delta in llm.chat_stream(messages):

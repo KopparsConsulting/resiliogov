@@ -167,6 +167,8 @@ export const functionRoutes: FastifyPluginAsync = async (app) => {
   };
 
   app.post('/functions/extract-requirements', { preHandler: requireApproved }, (req, reply) => forwardToAi('/extract', req, reply));
+  // Bygger det semantiska indexet för nya/ändrade krav (körs annars periodiskt i AI-tjänsten)
+  app.post('/functions/reindex-embeddings', { preHandler: requireAdmin }, (req, reply) => forwardToAi('/reindex', req, reply));
   app.post('/functions/regulatory-chat', { preHandler: requireApproved }, (req, reply) => forwardToAi('/chat', req, reply, true));
   app.post('/functions/analytics-chat', { preHandler: requireApproved }, async (req, reply) => {
     const enabled = await withActor({ userId: req.session!.sub, role: 'authenticated' }, async (db) =>
