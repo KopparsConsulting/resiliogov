@@ -46,8 +46,19 @@ grep -E " (TABLE|TYPE) auth " "$TOC.all" >> "$TOC.2" || true
 grep -E " TABLE DATA auth users " "$TOC.all" >> "$TOC.2" || true
 TOCLIST="$TOC.2"
 if [ -z "${PG_RESTORE:-}" ]; then cp "$TOC.2" "$DUMP_DIR/.restore-toc.txt"; TOCLIST="/dump/.restore-toc.txt"; fi
-pgr -d "$RAW" --no-owner --no-privileges -L "$TOCLIST" "$(dumppath)" 2>&1 | grep -vE "warning|transaction_timeout" || true
+set +e
+pgr -d "$RAW" --no-owner --no-privileges -L "$TOCLIST" "$(dumppath)" 2>&1 | grep -vE "warning|transaction_timeout"
+set -e
 rm -f "$DUMP_DIR/.restore-toc.txt"
+
+# Avbryt innan något töms om återställningen inte gav data
+RAW_REQS=$($PSQL -At -d "$RAW" -c "SELECT count(*) FROM public.requirements" 2>/dev/null || echo 0)
+RAW_LOG=$($PSQL -At -d "$RAW" -c "SELECT count(*) FROM public.activity_log" 2>/dev/null || echo 0)
+echo "   arbetsdatabasen: $RAW_REQS krav, $RAW_LOG loggrader"
+if [ "$RAW_REQS" = "0" ] || [ "$RAW_LOG" = "0" ]; then
+  echo "FEL: återställningen gav ingen data – inget har ändrats i $DB. Se felen ovan (zstd-stöd? nätverk till databasen från containern?)." >&2
+  exit 1
+fi
 
 echo "2–3. kopierar till $DB med triggrar avstängda"
 TABLES=$($PSQL -At -d "$RAW" -c "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")
