@@ -48,7 +48,8 @@ def _fetch_requirements(user_id: str, source_ids: list[str] | None) -> list[dict
                 params.append(source_ids)
             cur.execute(sql, params)
             cols = [c.name for c in cur.description]
-            return [dict(zip(cols, row)) for row in cur.fetchall()]
+            # UUID → str så att raderna kan skickas som JSON
+            return [{k: (str(v) if hasattr(v, "hex") and not isinstance(v, (bytes, str)) else v) for k, v in zip(cols, row)} for row in cur.fetchall()]
 
 
 def _score(req: dict, terms: list[str]) -> int:

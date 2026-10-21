@@ -148,9 +148,18 @@ export const functionRoutes: FastifyPluginAsync = async (app) => {
       body: JSON.stringify(req.body ?? {}),
     });
     if (stream && res.ok && res.body) {
+      // Strömmen skrivs direkt på svaret; fel efter att huvudena skickats får
+      // bara avsluta strömmen, inte kasta vidare (det kraschar processen).
+      reply.hijack();
       reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-      for await (const chunk of res.body as any) reply.raw.write(chunk);
-      reply.raw.end();
+      try {
+        for await (const chunk of res.body as any) reply.raw.write(chunk);
+      } catch (e) {
+        req.log.error(e, 'ai-ström avbröts');
+        reply.raw.write(`data: ${JSON.stringify({ error: 'AI-tjänsten avbröt svaret' })}\n\n`);
+      } finally {
+        reply.raw.end();
+      }
       return reply;
     }
     const body = await res.text();
