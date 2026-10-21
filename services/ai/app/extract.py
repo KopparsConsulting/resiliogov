@@ -98,6 +98,15 @@ Regler:
 6. Beskrivningen ska vara den faktiska kravtexten — VERBATIM från dokumentet, ingen översättning, ingen sammanfattning. Ta inte med referensnumret i beskrivningen.
 7. SIDNUMMER: texten innehåller markörer i formatet "--- Sida N ---". Sätt source_page till N för den närmast föregående markören där kravet börjar. Gissa aldrig ett sidnummer som inte finns i texten; saknas markör: null.
 
+SVENSKA FÖRESKRIFTER (MCFFS, PTSFS, MSBFS m.fl.) – GRANULARITET, följ exakt:
+- Varje paragraf är ett krav: "3 kap. 13 §", beskrivning = paragrafens text.
+- Innehåller paragrafen en numrerad punktlista (1. 2. 3. …) är dessutom VARJE punkt ett EGET krav
+  med referens "3 kap. 4 § 1", "3 kap. 4 § 2" … och beskrivning = paragrafens inledande mening + punktens text.
+  Paragrafen "3 kap. 4 §" tas ÄNDÅ med som eget krav (med hela texten).
+- Ett "Allmänna råd"-stycke som följer en paragraf är ett EGET krav med referens "3 kap. 4 § allmänna råd",
+  requirement_level = recommended, beskrivning = rådets text.
+- En paragraf med fem punkter och allmänna råd ger alltså SJU krav. Hoppa inte över punkter.
+
 DEDUPLICERING:
 - Texten kan innehålla SAMMA krav på flera språk (bilingual EN/FR-standarder).
 - Returnera VARJE referensnummer (CR 1.1, SR 2.3, 4 kap. 3 §) ENDAST EN GÅNG.

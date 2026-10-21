@@ -108,8 +108,8 @@ async def main() -> None:
         "recall": round(len(hits) / max(len(truth), 1), 3), "precision": round(len(hits) / max(len(found), 1), 3),
         "page_accuracy": round(page_ok / max(len(hits), 1), 3), "text_match": round(text_ok / max(len(hits), 1), 3),
         "seconds": round(elapsed, 1), "failed_chunks": state.get("failed", []), "chunk_chars": CHUNK_CHARS,
-        "missed": sorted(set(truth_by_ref) - set(found))[:50],
-        "extra": sorted(set(found) - set(truth_by_ref))[:50],
+        "missed": sorted(set(truth_by_ref) - set(found)),
+        "extra": sorted(set(found) - set(truth_by_ref)),
     }
     (out / f"{slug}-{summary['date']}.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
     kept.write_text(json.dumps(state, ensure_ascii=False))
