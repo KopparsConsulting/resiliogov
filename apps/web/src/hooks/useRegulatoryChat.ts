@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { functionAuthHeaders } from '@/lib/functionAuth';
+import { API_BASE } from '@/integrations/supabase/client';
 
 export interface ChatMessage {
   id: string;
@@ -23,7 +24,7 @@ interface ContextFilter {
   domain?: string;
 }
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/regulatory-chat`;
+const CHAT_URL = `${API_BASE}/functions/regulatory-chat`;
 
 export function useRegulatoryChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -72,6 +73,7 @@ export function useRegulatoryChat() {
     try {
       const response = await fetch(CHAT_URL, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...(await functionAuthHeaders()),

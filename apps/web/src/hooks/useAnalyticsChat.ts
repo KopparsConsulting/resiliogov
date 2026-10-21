@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { functionAuthHeaders } from '@/lib/functionAuth';
+import { API_BASE } from '@/integrations/supabase/client';
 
 export interface AnalyticsChatMessage {
   id: string;
@@ -41,7 +42,7 @@ export interface ToolResult {
   result: any;
 }
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analytics-chat`;
+const CHAT_URL = `${API_BASE}/functions/analytics-chat`;
 
 // Extract chart config from markdown response
 function extractChartConfig(content: string): { cleanContent: string; chartConfig?: ChartConfig } {
@@ -185,6 +186,7 @@ export function useAnalyticsChat() {
 
       const response = await fetch(CHAT_URL, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...(await functionAuthHeaders()),

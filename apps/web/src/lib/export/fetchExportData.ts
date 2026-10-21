@@ -1,7 +1,8 @@
 import type { ExportFilters, ExportData } from './types';
 import { functionAuthHeaders } from '@/lib/functionAuth';
+import { API_BASE } from '@/integrations/supabase/client';
 
-const EXPORT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-compliance-package`;
+const EXPORT_URL = `${API_BASE}/functions/export-compliance-package`;
 
 /**
  * Hämtar exportdata. Servern registrerar exporten i revisionskedjan innan
@@ -11,6 +12,7 @@ const EXPORT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-com
 export async function fetchExportData(filters: ExportFilters): Promise<ExportData> {
   const response = await fetch(EXPORT_URL, {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(await functionAuthHeaders()),

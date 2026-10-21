@@ -166,6 +166,8 @@ export interface FunctionsError {
   context?: unknown;
 }
 
+// Samma signatur som supabase-js (`invoke<T = any>`), så att anropsställena kan läsa `data?.fält`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function invokeFunction<T = any>(
   name: string,
   options: { body?: unknown; headers?: Record<string, string> } = {},

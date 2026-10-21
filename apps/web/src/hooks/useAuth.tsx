@@ -1,39 +1,45 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import type { User, Session } from '@supabase/supabase-js';
+import { supabase, fetchMe, invalidateAuth } from '@/integrations/supabase/client';
+import type { User, Session, InstallationRole } from '@/integrations/supabase/client';
+
+/**
+ * Inloggning och behörighet kommer från API:t (GET /api/auth/me).
+ * Profilen skapas av API:t vid första OIDC-inloggningen; godkännande och
+ * adminroll sätts bara i databasen. Klienten beslutar ingenting om behörighet.
+ */
 
 interface Profile {
   id: string;
   email: string;
   full_name: string | null;
   approved: boolean;
-  created_at: string;
 }
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
+  /** Kontot är godkänt av en administratör (eller admin). */
+  approved: boolean;
+  /** Alias för `approved`, behålls för befintliga sidor. */
   isApproved: boolean;
   isAdmin: boolean;
+  roles: string[];
+  /** Installationens roll: katalognod, driftnod eller båda. */
+  installationRole: InstallationRole | null;
   loading: boolean;
   signOut: () => Promise<void>;
-}
-
-const ADMIN_EMAIL = 'anders.runhem@gmail.com';
-const AUTO_APPROVED_DOMAINS = ['addcontext.se'];
-
-function isAutoApprovedEmail(email: string) {
-  const normalized = email.toLowerCase();
-  return AUTO_APPROVED_DOMAINS.some((domain) => normalized.endsWith(`@${domain}`));
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
   profile: null,
+  approved: false,
   isApproved: false,
   isAdmin: false,
+  roles: [],
+  installationRole: null,
   loading: true,
   signOut: async () => {},
 });
@@ -42,63 +48,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [approved, setApproved] = useState(false);
+  const [roles, setRoles] = useState<string[]>([]);
+  const [installationRole, setInstallationRole] = useState<InstallationRole | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const syncUserAccess = useCallback(async (currentUser: User) => {
-    const email = currentUser.email ?? '';
-    const normalizedEmail = email.toLowerCase();
-    const isBootstrapAdmin = normalizedEmail === ADMIN_EMAIL;
-    const autoApprove = isBootstrapAdmin || isAutoApprovedEmail(normalizedEmail);
-
-    const { data: existingProfile, error: profileFetchError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', currentUser.id)
-      .maybeSingle();
-
-    if (profileFetchError) {
-      console.error('Could not fetch profile', profileFetchError);
-      setProfile(null);
-    } else if (existingProfile) {
-      setProfile(existingProfile);
-    } else {
-      const fullName = currentUser.user_metadata?.full_name ?? currentUser.user_metadata?.name ?? null;
-      const { data: createdProfile, error: profileCreateError } = await supabase
-        .from('profiles')
-        .insert({
-          id: currentUser.id,
-          email,
-          full_name: typeof fullName === 'string' ? fullName : null,
-          approved: autoApprove,
-        })
-        .select('*')
-        .single();
-
-      if (profileCreateError) {
-        console.error('Could not create missing profile', profileCreateError);
-        setProfile(null);
-      } else {
-        setProfile(createdProfile);
-      }
-    }
-
-    // Adminrollen sätts bara i databasen (klienten har inte skrivrätt till
-    // user_roles). Vi läser den här – en e-postadress ger ingen behörighet.
-    const { data: roleData, error: roleFetchError } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', currentUser.id)
-      .eq('role', 'admin')
-      .maybeSingle();
-
-    if (roleFetchError) {
-      console.error('Could not fetch admin role', roleFetchError);
-      setIsAdmin(false);
-      return;
-    }
-
-    setIsAdmin(!!roleData);
+  const clear = useCallback(() => {
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+    setApproved(false);
+    setRoles([]);
   }, []);
 
   const syncSessionState = useCallback(async (nextSession: Session | null) => {
@@ -106,16 +66,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(nextSession?.user ?? null);
 
     if (!nextSession?.user) {
-      setProfile(null);
-      setIsAdmin(false);
+      clear();
       setLoading(false);
       return;
     }
 
     setLoading(true);
-    await syncUserAccess(nextSession.user);
-    setLoading(false);
-  }, [syncUserAccess]);
+    try {
+      const me = await fetchMe();
+      if (!me) {
+        clear();
+        return;
+      }
+      setProfile({
+        id: me.user.id,
+        email: me.user.email,
+        full_name: me.user.full_name,
+        approved: me.approved,
+      });
+      setApproved(me.approved);
+      setRoles(me.roles);
+      setInstallationRole(me.installation_role);
+    } catch (err) {
+      console.error('Could not fetch current user', err);
+      clear();
+    } finally {
+      setLoading(false);
+    }
+  }, [clear]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -126,28 +104,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    void supabase.auth.getSession().then(({ data: { session: nextSession } }) => {
-      void syncSessionState(nextSession);
-    });
-
     return () => subscription.unsubscribe();
   }, [syncSessionState]);
 
   const signOut = async () => {
+    clear();
+    invalidateAuth();
     await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    setProfile(null);
-    setIsAdmin(false);
   };
+
+  const isAdmin = roles.includes('admin');
 
   return (
     <AuthContext.Provider value={{
       user,
       session,
       profile,
-      isApproved: profile?.approved ?? isAdmin,
+      approved: approved || isAdmin,
+      isApproved: approved || isAdmin,
       isAdmin,
+      roles,
+      installationRole,
       loading,
       signOut,
     }}>

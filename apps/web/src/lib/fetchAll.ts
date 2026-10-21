@@ -15,7 +15,7 @@
  * på `id` läggs till efter frågans egen sortering, så att sidorna inte
  * överlappar eller hoppar över rader.
  */
-import type { PostgrestError } from '@supabase/supabase-js';
+import type { PostgrestError } from '@supabase/postgrest-js';
 
 /** Måste vara <= projektets max_rows (Supabase standard: 1000). */
 export const PAGE_SIZE = 1000;

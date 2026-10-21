@@ -52,7 +52,7 @@ anpassade till den nya strukturen.
 - Språk: svenska. Design: neutral gråskala, färg bara för status. Geist, laddad
   lokalt (inga externa CDN:er – fungerar inte innanför brandväggen).
 - Måste fungera i Edge på Windows.
-- Datalagret går via API-klienten i `apps/web/src/api/`, aldrig direkt mot databasen.
+- Datalagret går via shimmen `apps/web/src/integrations/supabase/client.ts` (postgrest-js mot `/api/rest`, auth/funktioner/filer mot API:t), aldrig direkt mot databasen.
 
 ## Kontroll
 

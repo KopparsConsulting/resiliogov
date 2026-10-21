@@ -15,7 +15,6 @@ import {
   Bot,
   TrendingUp,
   Sparkles,
-  HardDrive,
   Archive,
   FileText,
   Users,
@@ -398,18 +397,6 @@ export function AppSidebar() {
                       >
                         <BookOpen className="h-4 w-4" />
                         {!collapsed && <span>Manual</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to="/deployment"
-                        className="flex items-center gap-3"
-                        activeClassName="bg-accent text-accent-foreground"
-                      >
-                        <HardDrive className="h-4 w-4" />
-                        {!collapsed && <span>Driftsspecifikation</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

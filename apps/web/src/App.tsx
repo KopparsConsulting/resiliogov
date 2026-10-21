@@ -24,7 +24,6 @@ import SearchPage from "./pages/SearchPage";
 import ImpactAnalysisPage from "./pages/ImpactAnalysisPage";
 import AIAssistantPage from "./pages/AIAssistantPage";
 import AnalyticsAssistantPage from "./pages/AnalyticsAssistantPage";
-import DeploymentPage from "./pages/DeploymentPage";
 import ExportPage from "./pages/ExportPage";
 import RequirementsPage from "./pages/RequirementsPage";
 import RequirementPrintPage from "./pages/RequirementPrintPage";
@@ -69,7 +68,6 @@ function ProtectedRoutes() {
         <Route path="/impact-analysis" element={<ImpactAnalysisPage />} />
         <Route path="/ai-assistant" element={<AIAssistantPage />} />
         <Route path="/analytics-assistant" element={<AnalyticsAssistantPage />} />
-        <Route path="/deployment" element={<DeploymentPage />} />
         <Route path="/export" element={<ExportPage />} />
         <Route path="/requirements" element={<RequirementsPage />} />
         <Route path="/requirements/print" element={<RequirementPrintPage />} />
