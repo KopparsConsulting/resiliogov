@@ -126,6 +126,7 @@ services:
         condition: service_healthy
     volumes:
       - aicache:/root/.cache
+      - ${EVAL_DOCS_DIR:-./services/ai/eval/docs}:/srv/eval/docs:ro   # källdokument för modellutvärdering (aldrig i git)
 
   # Linux + NVIDIA: modellservern i container. På Mac mini används Ollama på
   # värden i stället (profil ai-host).
