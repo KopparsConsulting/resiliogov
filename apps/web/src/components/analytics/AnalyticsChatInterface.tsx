@@ -109,9 +109,9 @@ export function AnalyticsChatInterface({
           <AlertDescription className="space-y-2">
             <p className="font-medium">Analysassistenten är avstängd</p>
             <p>
-              Den skickar anläggningsnamn och vilka krav som inte är uppfyllda till en extern AI-tjänst, och är
-              därför avstängd som standard. En administratör kan slå på den under Administration → AI och extern
-              databehandling. Översikter och rapporter fungerar som vanligt utan AI.
+              Den låter AI-modellen läsa anläggningsnamn och vilka krav som inte är uppfyllda, och är därför
+              avstängd som standard. En administratör kan slå på den under Administration → AI-funktioner.
+              Översikter och rapporter fungerar som vanligt utan AI.
             </p>
           </AlertDescription>
         </Alert>

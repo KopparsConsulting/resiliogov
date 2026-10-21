@@ -6,7 +6,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useInstallationSettings, useSetAiComplianceAnalysis } from '@/hooks/useInstallationSettings';
 
 /**
- * Styr vilka AI-funktioner som får skicka data till extern AI-tjänst.
+ * Styr vilka AI-funktioner som får läsa efterlevnadsdata. I driftläge körs modellen lokalt;
+ * i katalogläge används en extern modell.
  * Regelverkschatt och kravimport skickar bara offentlig lagtext (plus
  * användarens fråga). Analysassistenten skickar efterlevnadsdata och är
  * därför avstängd som standard.
@@ -44,13 +45,13 @@ export function AiSettingsCard() {
           <Alert variant="destructive">
             <ShieldAlert className="h-4 w-4" />
             <AlertDescription>
-              Påslagen: efterlevnadsdata skickas till extern AI-tjänst när någon använder analysassistenten.
+              Påslagen: analysassistenten läser efterlevnadsdata (anläggningar, system, brister) när någon använder den.
             </AlertDescription>
           </Alert>
         )}
         <p className="text-sm text-muted-foreground">
-          Regelverkschatten och kravimporten skickar bara offentlig lagtext och användarens egen fråga, och är
-          alltid påslagna. Skriv inte skyddsvärda uppgifter i frågorna.
+          Regelverkschatten och kravimporten använder bara kravtexter och användarens egen fråga, och är
+          alltid påslagna. I driftläge körs AI-modellen lokalt i installationen.
         </p>
       </CardContent>
     </Card>

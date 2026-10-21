@@ -13,7 +13,7 @@ export default function AIAssistantPage() {
         <div>
           <h1 className="text-2xl font-bold">AI-Assistent för Regelverk</h1>
           <p className="text-muted-foreground">
-            Prototyp för att demonstrera AI-stöd vid regelverksfrågor
+            Sök och förstå krav i regelverken med AI-stöd
           </p>
         </div>
       </div>
@@ -62,22 +62,22 @@ export default function AIAssistantPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <BookOpen className="h-4 w-4" />
-                Om prototypen
+                Om assistenten
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground space-y-2">
               <p>
-                Denna prototyp demonstrerar hur AI kan stödja myndigheter i att 
-                söka och förstå regelverk. Systemet:
+                Assistenten hjälper till att söka och förstå krav i regelverken. Den:
               </p>
               <ul className="list-disc list-inside space-y-1">
                 <li>Söker endast i definierade kravtexter</li>
                 <li>Visar tydliga källhänvisningar</li>
                 <li>Skiljer på bindande krav och rekommendationer</li>
                 <li>Meddelar när underlag saknas</li>
+                <li>Kör AI-modellen lokalt i driftläge – inget lämnar nätet</li>
               </ul>
               <p className="pt-2 font-medium text-foreground">
-                Prototypen är inte avsedd för beslutsstöd i skarpa ärenden.
+                Svaren är ett stöd, inte ett beslutsunderlag – kontrollera alltid mot originalföreskriften.
               </p>
             </CardContent>
           </Card>
