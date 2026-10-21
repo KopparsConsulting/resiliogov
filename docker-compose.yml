@@ -62,6 +62,8 @@ services:
       DATABASE_URL: postgres://app_api:${APP_API_PASSWORD:?sätt APP_API_PASSWORD i .env}@db:5432/${PGDATABASE:-resiliogov}
       DATABASE_ADMIN_URL: postgres://postgres:${PGPASSWORD}@db:5432/${PGDATABASE:-resiliogov}
       INSTALLATION_ROLE: ${INSTALLATION_ROLE:-operations}   # catalog | operations | combined
+      BOOTSTRAP_ADMIN_EMAILS: ${BOOTSTRAP_ADMIN_EMAILS:-}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
       OIDC_ISSUER: ${OIDC_ISSUER:-http://keycloak:8080/realms/resiliogov}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-resiliogov-web}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}

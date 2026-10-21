@@ -17,6 +17,8 @@ const schema = z.object({
   S3_SECRET_KEY: z.string().optional(),
   AI_BASE_URL: z.string().url().optional(),
   COOKIE_SECURE: z.coerce.boolean().default(false),
+  /** Kommaseparerad lista: e-postadresser som blir administratör vid inloggning (första användaren blir det alltid). */
+  BOOTSTRAP_ADMIN_EMAILS: z.string().default(''),
 });
 
 export const config = schema.parse(process.env);

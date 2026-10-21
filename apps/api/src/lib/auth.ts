@@ -60,5 +60,9 @@ export async function provisionUser(idToken: { sub: string; email?: string; name
            raw_user_meta_data = auth.users.raw_user_meta_data || EXCLUDED.raw_user_meta_data
      RETURNING id`,
     [idToken.sub, idToken.email ?? '', idToken.email_verified ?? true, idToken.name ?? idToken.email ?? '']);
-  return r.rows[0].id;
+  const userId = r.rows[0].id;
+  // Första användaren, eller en adress i bootstrap-listan, blir administratör (loggas i kedjan)
+  const bootstrap = config.BOOTSTRAP_ADMIN_EMAILS.split(',').map((e) => e.trim()).filter(Boolean);
+  await pool.query('SELECT public.bootstrap_admin($1, $2::text[])', [userId, bootstrap]);
+  return userId;
 }
