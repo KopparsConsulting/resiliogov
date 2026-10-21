@@ -48,30 +48,47 @@ def norm(s: str) -> str:
 
 
 def facit(source_name: str) -> list[dict]:
+    # Via SECURITY DEFINER-funktion: skriptet kör som app_api och RLS på
+    # requirements skulle annars ge noll rader (migrering 0004).
+    cols = ["document_name", "chapter_section", "description", "source_page", "requirement_level", "target_type"]
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn, conn.cursor() as cur:
-        cur.execute("""SELECT r.chapter_section, r.description, r.source_page, r.requirement_level, r.target_type
-                       FROM public.requirements r JOIN public.requirement_sources s ON s.id = r.source_id
-                       WHERE s.document_name = %s AND r.repealed_at IS NULL""", (source_name,))
-        return [dict(zip(["chapter_section", "description", "source_page", "requirement_level", "target_type"], row)) for row in cur]
+        cur.execute("SELECT * FROM public.catalog_requirements(%s)", (source_name,))
+        rows = [dict(zip(cols, row)) for row in cur]
+    names = sorted({r["document_name"] for r in rows})
+    if not rows:
+        raise SystemExit(f"Inget facit för '{source_name}' – kontrollera document_name i requirement_sources "
+                         f"(och att migrering 0004 är körd: docker compose exec db bash /db/scripts/init.sh)")
+    if len(names) > 1:
+        raise SystemExit(f"'{source_name}' matchar flera regelverk: {names} – ange ett mer exakt namn")
+    print(f"facit: {len(rows)} krav i '{names[0]}'")
+    return rows
 
 
 async def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", required=True, help="document_name i requirement_sources")
-    ap.add_argument("--pdf", required=True, type=Path)
+    ap.add_argument("--pdf", type=Path, help="krävs utom vid --rescore")
     ap.add_argument("--language", default=None)
     ap.add_argument("--resume", action="store_true", help="fortsätt från sparade delresultat")
+    ap.add_argument("--rescore", action="store_true", help="räkna bara om mot facit från senaste körningens chunkar (ingen modell)")
     args = ap.parse_args()
 
     truth = facit(args.source)
     truth_by_ref = {norm(t["chapter_section"]): t for t in truth}
-    text = pdf_to_text_with_pages(args.pdf)
-    parts = chunks(text)
+    if not args.rescore and not args.pdf:
+        ap.error("--pdf krävs")
+    parts = [] if args.rescore else chunks(pdf_to_text_with_pages(args.pdf))
     # Delresultat per chunk så att en avbruten körning kan återupptas med --resume
     out = Path("eval/results"); out.mkdir(exist_ok=True)
     slug = f"{llm.MODEL.replace('/', '_').replace(':', '-')}-{re.sub(r'[^a-z0-9]+', '-', args.source.lower())}"
     partial = out / f"{slug}.partial.json"
-    state = json.loads(partial.read_text()) if args.resume and partial.exists() else {"chunks": {}, "seconds": 0.0}
+    kept = out / f"{slug}.chunks.json"   # behålls efter körning så resultatet kan räknas om mot facit
+    if args.rescore:
+        if not kept.exists():
+            raise SystemExit(f"Inga sparade chunkar: {kept}")
+        state = json.loads(kept.read_text())
+    else:
+        state = json.loads(partial.read_text()) if args.resume and partial.exists() else {"chunks": {}, "seconds": 0.0}
     t0 = time.time()
     for i, chunk in enumerate(parts, 1):
         if str(i) in state["chunks"]:
@@ -109,6 +126,7 @@ async def main() -> None:
         "extra": sorted(set(found) - set(truth_by_ref))[:50],
     }
     (out / f"{slug}-{summary['date']}.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
+    kept.write_text(json.dumps(state, ensure_ascii=False))
     partial.unlink(missing_ok=True)
     print(json.dumps({k: v for k, v in summary.items() if k not in ('missed', 'extra')}, ensure_ascii=False, indent=2))
 

@@ -12,7 +12,8 @@ genom AI-tjänsten med en given modell och mäter:
 
 ```sh
 # PDF:erna i EVAL_DOCS_DIR (.env), t.ex. ~/data/docs på minin; monteras som /srv/eval/docs i containern.
-# --source måste vara exakt document_name i requirement_sources.
+# --source är document_name i requirement_sources (delmatchning räcker om den är entydig).
+# Facit läses via public.catalog_requirements (migrering 0004) – kör db/scripts/init.sh först.
 docker compose exec ai python -m eval.run --source "MCFFS 2026:11" --pdf eval/docs/mcffs-2026-11.pdf --language sv
 docker compose exec -e LLM_MODEL=gpt-oss:20b ai python -m eval.run --source "MCFFS 2026:11" --pdf eval/docs/mcffs-2026-11.pdf --language sv
 docker compose exec ai python -m eval.run --source "IEC 62443-3-3:2013 - System security requirements and security levels" --pdf eval/docs/iec-62443-3-3.pdf --language en
@@ -21,6 +22,10 @@ docker compose exec ai python -m eval.run --source "IEC 62443-3-3:2013 - System 
 Första körningen laddar Docling ner sina layoutmodeller (~500 MB) från Hugging Face –
 det kräver internet och görs en gång (cachas i volymen `aicache`). I en avskärmad
 installation levereras cachen med installationspaketet.
+
+Avbruten körning: `--resume` fortsätter från sparade chunkar. Efter en körning
+sparas chunkarna i `eval/results/<modell>-<källa>.chunks.json`; `--rescore`
+räknar om mot facit utan att köra modellen (t.ex. när facit ändrats).
 
 Resultat skrivs till `eval/results/<modell>-<källa>-<datum>.json` och en
 sammanfattning till `eval/results/README.md`. Det är dessa siffror som avgör
