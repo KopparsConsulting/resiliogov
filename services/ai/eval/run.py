@@ -11,7 +11,7 @@ from pathlib import Path
 
 import psycopg
 
-from app import extract, llm
+from app import chunking, extract, llm
 
 CHUNK_CHARS = int(os.environ.get("EVAL_CHUNK_CHARS", "6000"))  # prototypen: 15000; mindre = snabbare och säkrare på CPU/Apple Silicon
 
@@ -27,20 +27,6 @@ def pdf_to_text_with_pages(pdf: Path) -> str:
             continue
         pages.setdefault(prov[0].page_no, []).append(text)
     return "\n".join(f"--- Sida {n} ---\n" + "\n".join(t) for n, t in sorted(pages.items()))
-
-
-def chunks(text: str) -> list[str]:
-    if len(text) <= CHUNK_CHARS:
-        return [text]
-    out, cur = [], ""
-    for page in re.split(r"(?=--- Sida \d+ ---)", text):
-        if len(cur) + len(page) > CHUNK_CHARS and cur:
-            out.append(cur)
-            cur = ""
-        cur += page
-    if cur:
-        out.append(cur)
-    return out
 
 
 def norm(s: str) -> str:
@@ -77,7 +63,7 @@ async def main() -> None:
     truth_by_ref = {norm(t["chapter_section"]): t for t in truth}
     if not args.rescore and not args.pdf:
         ap.error("--pdf krävs")
-    parts = [] if args.rescore else chunks(pdf_to_text_with_pages(args.pdf))
+    parts = [] if args.rescore else chunking.split(pdf_to_text_with_pages(args.pdf), CHUNK_CHARS)
     # Delresultat per chunk så att en avbruten körning kan återupptas med --resume
     out = Path("eval/results"); out.mkdir(exist_ok=True)
     slug = f"{llm.MODEL.replace('/', '_').replace(':', '-')}-{re.sub(r'[^a-z0-9]+', '-', args.source.lower())}"
@@ -96,7 +82,7 @@ async def main() -> None:
             continue
         tc = time.time()
         try:
-            res = await extract.extract(extract.ExtractRequest(text=chunk, document_name=args.source, language=args.language))
+            res = await extract.extract_chunk(chunk, args.source, [], args.language)
         except Exception as e:   # en misslyckad chunk ska inte stoppa hela mätningen
             print(f"chunk {i}/{len(parts)}: MISSLYCKADES ({e})")
             state["chunks"][str(i)] = []

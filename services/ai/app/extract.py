@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from . import llm
+from . import chunking, llm
 
 
 class Domain(BaseModel):
@@ -84,6 +84,8 @@ Vad räknas som ett krav:
 
 Regler:
 1. Identifiera varje krav med exakt kapitel/paragraf-referens (t.ex. "4 kap. 3 §", "CR 1.1", "CR 1.2 (1)", "SR 2.3", "EDR 2.4 (1)")
+   - Svenska författningar: ALLTID med kapitel, "3 kap. 19 §" – aldrig bara "19 §". Står kapitlet i hakparentesen
+     i början av texten gäller det tills en ny rubrik "N kap." dyker upp i texten.
 2. "ska"/"shall"/"doivent" = mandatory, "bör"/"should"/"devraient" = recommended, övergripande mål = strategic
 3. Mappa varje krav till en domän baserat på innehållet om möjligt (domain_slug), annars null
 4. Fysisk infrastruktur → target_type = "facility", IT/system/komponenter → target_type = "system"
@@ -135,3 +137,21 @@ async def extract(req: ExtractRequest) -> dict[str, Any]:
             "trigger_logic": _clean_trigger_logic(r.get("trigger_logic"), r.get("target_type") or "system"),
         })
     return {"requirements": out, "model": llm.MODEL}
+
+
+async def extract_chunk(chunk: chunking.Chunk, document_name: str | None, domains: list[Domain], language: str | None) -> dict[str, Any]:
+    """Extraktion av en chunk med kapitelkontext: kapitlet skickas med till modellen och
+    referenser som ändå saknar kapitel ("19 §") fylls på. Sida saknas → chunkens första sida."""
+    res = await extract(ExtractRequest(text=chunking.with_context(chunk), document_name=document_name,
+                                       domains=domains, language=language))
+    out, seen = [], set()
+    for r in res["requirements"]:
+        r["chapter_section"] = chunking.qualify_reference(r["chapter_section"], chunk)
+        if not r.get("source_page"):
+            r["source_page"] = chunk.first_page
+        if r["chapter_section"] in seen:
+            continue
+        seen.add(r["chapter_section"])
+        out.append(r)
+    res["requirements"] = out
+    return res
