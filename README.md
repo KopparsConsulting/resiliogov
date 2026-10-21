@@ -90,8 +90,9 @@ PGDATABASE=resiliogov bash db/scripts/test.sh
 - [x] API: OIDC-inloggning, PostgREST-proxy, filarkiv, export, lagtext (katalogläge), AI-vidarebefordran
 - [x] Webb kopplad till API (shim; inga externa beroenden i bygget)
 - [x] AI-tjänst: extraktion med JSON-schema, regelverkschatt; utvärderingsskript mot facit
-- [ ] Kravpaket nr 1 importerat (från betan)
 - [x] Produktionsdata inläst från Lovable-dumpen 2026-10-21 (`db/scripts/import_prod_dump.sh`); hashkedjan intakt, 9/9 testsviter gröna
-- [ ] Hela stacken körd ände till ände med `docker compose up` (väntar på Docker-miljö: minin)
+- [x] Hela stacken körd ände till ände på Mac mini 2026-10-21: Keycloak-inloggning → kopplat befintligt konto → Dashboard, anläggningar, aktivitetslogg med kedjan intakt (händelse 3369 = första inloggningen i nya noden)
 - [ ] Domän-/länkförslag och analysassistent i AI-tjänsten; pgvector-sök
-- [ ] Inre noden på Mac mini · yttre noden på Hetzner/Cloudflare
+- [x] Inre noden på Mac mini (test)
+- [ ] AI-tjänsten igång mot Ollama på minin; första inläsning med lokal modell
+- [ ] Yttre noden på Hetzner/Cloudflare
