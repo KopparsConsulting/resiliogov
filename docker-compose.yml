@@ -17,6 +17,7 @@ services:
       POSTGRES_DB: ${PGDATABASE:-resiliogov}
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${PGPASSWORD:?sätt PGPASSWORD i .env}
+      APP_API_PASSWORD: ${APP_API_PASSWORD:?sätt APP_API_PASSWORD i .env}   # används av init-skriptet för rollen app_api
     volumes:
       - dbdata:/var/lib/postgresql/data
       - ./db:/db:ro
