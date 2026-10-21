@@ -4,9 +4,10 @@
 #
 #   PGDATABASE=resiliogov bash db/scripts/import_prod_dump.sh <dump.backup>
 #
-# Kräver pg_restore i samma huvudversion som dumpen gjordes med (Lovables
-# export 2026-10-21 är format 1.16 = Postgres 18). Sätt PG_RESTORE om den
-# inte ligger i PATH.
+# pg_restore måste vara i samma huvudversion som dumpen (Lovables export
+# 2026-10-21 är format 1.16 = Postgres 18) och byggd med zstd. Homebrews libpq
+# saknar zstd, så som standard körs pg_restore i en postgres:18-container
+# (RESTORE_IMAGE). Sätt PG_RESTORE till en lokal binär för att slippa Docker.
 #
 # Steg:
 #  1. Dumpen återställs i en arbetsdatabas (<db>_prodraw): bara public-tabeller
@@ -20,18 +21,33 @@ set -euo pipefail
 DUMP="${1:?ange sökväg till .backup-filen}"
 DB="${PGDATABASE:-resiliogov}"
 RAW="${DB}_prodraw"
-PG_RESTORE="${PG_RESTORE:-pg_restore}"
+RESTORE_IMAGE="${RESTORE_IMAGE:-postgres:18}"
 PSQL="psql -v ON_ERROR_STOP=1 -q"
+DUMP_DIR="$(cd "$(dirname "$DUMP")" && pwd)"; DUMP_FILE="$(basename "$DUMP")"
+
+# pg_restore: lokal binär om PG_RESTORE är satt, annars i container mot värdens Postgres
+pgr() {
+  if [ -n "${PG_RESTORE:-}" ]; then "$PG_RESTORE" "$@"; else
+    docker run --rm -i --network host -v "$DUMP_DIR:/dump:ro" \
+      -e PGHOST="${PGHOST:-localhost}" -e PGPORT="${PGPORT:-5432}" -e PGUSER="${PGUSER:-postgres}" -e PGPASSWORD="${PGPASSWORD:-}" \
+      "$RESTORE_IMAGE" pg_restore "$@"
+  fi
+}
+dumppath() { if [ -n "${PG_RESTORE:-}" ]; then echo "$DUMP"; else echo "/dump/$DUMP_FILE"; fi; }
 
 echo "1. arbetsdatabas $RAW"
 $PSQL -d postgres -c "DROP DATABASE IF EXISTS $RAW" -c "CREATE DATABASE $RAW"
 $PSQL -d "$RAW" -c "CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"; CREATE SCHEMA IF NOT EXISTS extensions; CREATE SCHEMA IF NOT EXISTS auth;"
 TOC=$(mktemp)
-$PG_RESTORE -l "$DUMP" | grep -E " (TABLE|TABLE DATA|SEQUENCE|SEQUENCE SET|TYPE|DEFAULT) (public|-) | (TABLE|TABLE DATA|TYPE) auth (users|[a-z_]+) " \
-  | grep -vE " TABLE DATA auth (?!users)" > "$TOC" || true
-# bara auth.users-data, men alla auth-typer (users refererar till dem)
-grep -vE " TABLE DATA auth " "$TOC" > "$TOC.2"; grep -E " TABLE DATA auth users " "$TOC" >> "$TOC.2" || true
-$PG_RESTORE -d "$RAW" --no-owner --no-privileges -L "$TOC.2" "$DUMP" 2>&1 | grep -vE "warning|transaction_timeout|SET transaction_timeout" || true
+pgr -l "$(dumppath)" > "$TOC.all"
+# public: tabeller, data, sekvenser, typer, defaults. auth: typer + tabellen users + bara users-data.
+grep -E " (TABLE|TABLE DATA|SEQUENCE|SEQUENCE SET|TYPE|DEFAULT) (public|-) " "$TOC.all" > "$TOC.2" || true
+grep -E " (TABLE|TYPE) auth " "$TOC.all" >> "$TOC.2" || true
+grep -E " TABLE DATA auth users " "$TOC.all" >> "$TOC.2" || true
+TOCLIST="$TOC.2"
+if [ -z "${PG_RESTORE:-}" ]; then cp "$TOC.2" "$DUMP_DIR/.restore-toc.txt"; TOCLIST="/dump/.restore-toc.txt"; fi
+pgr -d "$RAW" --no-owner --no-privileges -L "$TOCLIST" "$(dumppath)" 2>&1 | grep -vE "warning|transaction_timeout" || true
+rm -f "$DUMP_DIR/.restore-toc.txt"
 
 echo "2–3. kopierar till $DB med triggrar avstängda"
 TABLES=$($PSQL -At -d "$RAW" -c "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")
@@ -60,4 +76,4 @@ $PSQL -d "$DB" -c "SELECT setval(pg_get_serial_sequence('public.activity_log','s
 $PSQL -At -d "$DB" -c "SELECT 'krav: '||(SELECT count(*) FROM public.requirements)||', logg: '||(SELECT count(*) FROM public.activity_log)||', användare: '||(SELECT count(*) FROM auth.users)||', profiler: '||(SELECT count(*) FROM public.profiles)"
 $PSQL -At -d "$DB" -c "SELECT CASE WHEN intact THEN 'hashkedja: INTAKT ('||checked||' rader)' ELSE 'hashkedja: BRUTEN vid seq '||coalesce(first_broken_seq::text,'?')||' ('||coalesce(problem,'')||')' END FROM public.verify_activity_chain()"
 $PSQL -d postgres -c "DROP DATABASE $RAW"
-rm -f "$TOC" "$TOC.2" "$TOC.pre" "$TOC.users"
+rm -f "$TOC" "$TOC.all" "$TOC.2" "$TOC.pre"
