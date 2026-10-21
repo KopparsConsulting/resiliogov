@@ -155,6 +155,17 @@ services:
               count: all
               capabilities: [gpu]
 
+  # Yttre noden: publiceras via Cloudflare Tunnel (inga öppna portar på Hetzner).
+  # Åtkomst skyddas med Cloudflare Access framför tunneln.
+  tunnel:
+    image: cloudflare/cloudflared:2025.9.1
+    profiles: [tunnel]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?sätt CLOUDFLARE_TUNNEL_TOKEN i .env}
+    depends_on: [web]
+
 volumes:
   dbdata:
   miniodata:

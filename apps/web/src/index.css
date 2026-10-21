@@ -1,0 +1,327 @@
+/* Principle: Neutral grayscale. Color is used only for status (complete / warning / error / failed), never in headings, icons, surfaces or decoration. Primary buttons are black (white in dark mode). */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light - neutral grayscale */
+    --background: 0 0% 100%;
+    --overlay: 0 0% 0%;
+    --foreground: 0 0% 4%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 4%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 4%;
+
+    /* Primary - black / white */
+    --primary: 0 0% 4%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 4%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 4%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 4%;
+
+    --radius: 0.5rem;
+
+    /* Status - crisp, desaturated system colors */
+    --status-success: 142 72% 29%;
+    --status-success-foreground: 0 0% 100%;
+    --status-warning: 32 95% 44%;
+    --status-warning-foreground: 0 0% 100%;
+    --status-pending: 0 0% 45%;
+    --status-pending-foreground: 0 0% 100%;
+    --status-neutral: 0 0% 45%;
+    --status-neutral-foreground: 0 0% 100%;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 32%;
+    --sidebar-primary: 0 0% 4%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 94%;
+    --sidebar-accent-foreground: 0 0% 4%;
+    --sidebar-border: 0 0% 93%;
+    --sidebar-ring: 0 0% 4%;
+
+    --subtle: 0 0% 98%;
+    --border-strong: 0 0% 83%;
+    --text-secondary: 0 0% 32%;
+
+    /* Charts - neutral analytical palette */
+    --chart-1: 0 0% 20%;
+    --chart-2: 0 0% 40%;
+    --chart-3: 0 0% 55%;
+    --chart-4: 0 0% 70%;
+    --chart-5: 0 0% 83%;
+
+    /* Elevation - precise, layered, never diffuse */
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / .04);
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / .04);
+    --shadow-md: 0 1px 2px rgb(0 0 0 / .04), 0 4px 12px -4px rgb(0 0 0 / .08);
+  }
+
+  .dark {
+    /* Dark - neutral grayscale */
+    --background: 0 0% 4%;
+    --foreground: 0 0% 93%;
+
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 93%;
+
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 93%;
+
+    --primary: 0 0% 93%;
+    --primary-foreground: 0 0% 4%;
+
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 93%;
+
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 58%;
+
+    --accent: 0 0% 13%;
+    --accent-foreground: 0 0% 93%;
+
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 16%;
+    --input: 0 0% 18%;
+    --ring: 0 0% 83%;
+
+    --status-success: 142 60% 52%;
+    --status-success-foreground: 0 0% 100%;
+    --status-warning: 38 92% 56%;
+    --status-warning-foreground: 0 0% 4%;
+    --status-pending: 0 0% 58%;
+    --status-pending-foreground: 0 0% 100%;
+    --status-neutral: 0 0% 58%;
+    --status-neutral-foreground: 0 0% 100%;
+
+    --sidebar-background: 0 0% 6%;
+    --sidebar-foreground: 0 0% 70%;
+    --sidebar-primary: 0 0% 93%;
+    --sidebar-primary-foreground: 0 0% 4%;
+    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent-foreground: 0 0% 93%;
+    --sidebar-border: 0 0% 14%;
+    --sidebar-ring: 0 0% 83%;
+
+    --subtle: 0 0% 6%;
+    --border-strong: 0 0% 26%;
+    --text-secondary: 0 0% 70%;
+
+    --chart-1: 0 0% 20%;
+    --chart-2: 0 0% 40%;
+    --chart-3: 0 0% 55%;
+    --chart-4: 0 0% 70%;
+    --chart-5: 0 0% 83%;
+
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / .04);
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / .04);
+    --shadow-md: 0 1px 2px rgb(0 0 0 / .04), 0 4px 12px -4px rgb(0 0 0 / .08);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: 'ss01' on;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold;
+  }
+
+  h1, h2, h3, h4 { letter-spacing: -0.02em; }
+
+  /* Aligned figures in data-heavy surfaces */
+  table, .tabular, input[type="number"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Clean, non-glowing focus */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring/40 ring-offset-1 ring-offset-background;
+  }
+
+  ::selection {
+    @apply bg-primary/15;
+  }
+
+  /* Discreet scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.5);
+  }
+}
+
+@layer components {
+  /* Status chips - tinted surface + hairline border, SaaS style */
+  .status-success {
+    @apply bg-[hsl(var(--status-success)/0.12)] text-[hsl(var(--status-success))] border border-[hsl(var(--status-success)/0.25)];
+  }
+
+  .status-warning {
+    @apply bg-[hsl(var(--status-warning)/0.12)] text-[hsl(var(--status-warning))] border border-[hsl(var(--status-warning)/0.25)];
+  }
+
+  .status-pending {
+    @apply bg-[hsl(var(--status-pending)/0.12)] text-[hsl(var(--status-pending))] border border-[hsl(var(--status-pending)/0.25)];
+  }
+
+  .status-neutral {
+    @apply bg-[hsl(var(--status-neutral)/0.12)] text-[hsl(var(--status-neutral))] border border-[hsl(var(--status-neutral)/0.25)];
+  }
+
+  /* Solid variants when a chip must read as a filled badge */
+  .status-success-solid {
+    @apply bg-[hsl(var(--status-success))] text-[hsl(var(--status-success-foreground))];
+  }
+
+  .status-warning-solid {
+    @apply bg-[hsl(var(--status-warning))] text-[hsl(var(--status-warning-foreground))];
+  }
+
+  .status-pending-solid {
+    @apply bg-[hsl(var(--status-pending))] text-[hsl(var(--status-pending-foreground))];
+  }
+
+  .status-neutral-solid {
+    @apply bg-[hsl(var(--status-neutral))] text-[hsl(var(--status-neutral-foreground))];
+  }
+
+  .kpi-card {
+    @apply bg-card border border-border rounded-lg p-5 shadow-xs transition-colors duration-150 hover:border-foreground/15;
+  }
+
+  .progress-success {
+    @apply bg-[hsl(var(--status-success))];
+  }
+
+  .progress-warning {
+    @apply bg-[hsl(var(--status-warning))];
+  }
+
+  .table-row-interactive {
+    @apply hover:bg-muted/60 cursor-pointer transition-colors duration-100;
+  }
+
+  /* Small neutral section label */
+  .section-label {
+    @apply text-xs font-medium text-muted-foreground;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+}
+
+@layer utilities {
+  .scroll-x-visible {
+    scrollbar-gutter: stable;
+    scrollbar-width: auto;
+    scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--muted));
+  }
+
+  .scroll-x-visible::-webkit-scrollbar {
+    height: 12px;
+    width: 12px;
+  }
+
+  .scroll-x-visible::-webkit-scrollbar-track,
+  .scroll-x-visible::-webkit-scrollbar-corner {
+    background: hsl(var(--muted));
+  }
+
+  .scroll-x-visible::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground));
+    border: 2px solid hsl(var(--muted));
+    border-radius: 6px;
+    background-clip: padding-box;
+  }
+
+  .scroll-x-visible::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--foreground));
+  }
+
+  .test-model-sticky-approved {
+    background-color: color-mix(in srgb, hsl(var(--status-success)) 10%, hsl(var(--background)));
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.2s ease-out;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slide-in {
+    animation: slide-in 0.22s ease-out;
+  }
+
+  @keyframes slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+}
+
+@media print {
+  [data-sidebar], .peer[data-state], header.sticky { display: none !important; }
+  body { background: #fff !important; color: #000 !important; }
+  .print-card { break-inside: avoid; page-break-inside: avoid; }
+}
