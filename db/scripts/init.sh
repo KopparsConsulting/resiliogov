@@ -2,7 +2,8 @@
 # Initierar en tom databas: roller, baseline, migreringar. Idempotent.
 # Används av docker-entrypoint-initdb.d i Compose och av CI.
 set -euo pipefail
-DB="${PGDATABASE:-resiliogov}"
+DB="${PGDATABASE:-${POSTGRES_DB:-resiliogov}}"
+export PGUSER="${PGUSER:-postgres}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 PSQL="psql -v ON_ERROR_STOP=1 -q -d $DB"
 

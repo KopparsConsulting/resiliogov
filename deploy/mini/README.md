@@ -27,6 +27,8 @@ Keycloak med utvecklingsrealmen (admin/admin på http://mini:8081).
 ## Vardag
 
 ```sh
+git pull && docker compose exec db bash /db/scripts/init.sh   # kör nya migreringar
+docker compose --profile dev --profile ai-host up -d --build  # bygg om det som ändrats
 docker compose ps                     # status
 docker compose logs -f api            # loggar
 docker compose exec db psql -U postgres -d resiliogov   # SQL
