@@ -1,0 +1,29 @@
+name: Kontroll
+on:
+  push: { branches: [main] }
+  pull_request:
+jobs:
+  databas:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env: { POSTGRES_PASSWORD: ci, POSTGRES_DB: resiliogov }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: ci
+      PGDATABASE: resiliogov
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bygg schemat från baseline och migreringar
+        run: bash db/scripts/init.sh
+      - name: Läs in kravpaket (testfixtur) om det finns
+        run: |
+          if [ -f db/fixtures/kravpaket.json ]; then
+            psql -v ON_ERROR_STOP=1 -q -f db/scripts/import_package.sql -v pkg="$(cat db/fixtures/kravpaket.json)"
+          fi
+      - name: SQL-testsviter
+        run: REQUIRE_ALL=${{ hashFiles('db/fixtures/kravpaket.json') != '' && '1' || '0' }} bash db/scripts/test.sh
