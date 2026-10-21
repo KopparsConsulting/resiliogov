@@ -89,7 +89,7 @@ services:
       - "${WEB_PORT_HOST:-8080}:80"
 
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: minio/minio:latest   # låses till en tagg när driftpaketet fryses
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
