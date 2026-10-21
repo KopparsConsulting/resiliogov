@@ -74,9 +74,11 @@ PGDATABASE=resiliogov bash db/scripts/test.sh
 ## Status
 
 - [x] Schema porterat till ren Postgres och verifierat mot produktion
+- [x] API: OIDC-inloggning, PostgREST-proxy, filarkiv, export, lagtext (katalogläge), AI-vidarebefordran
+- [x] Webb kopplad till API (shim; inga externa beroenden i bygget)
+- [x] AI-tjänst: extraktion med JSON-schema, regelverkschatt; utvärderingsskript mot facit
 - [ ] Kravpaket nr 1 importerat (från betan)
 - [ ] Produktionsdata (anläggningar, bedömningar, logg) inläst via pg_dump
-- [ ] API: auth, roller, motor-endpoints
-- [ ] Webb kopplad till API
-- [ ] AI-tjänst: inläsning, chatt, förslag
+- [ ] Hela stacken körd ände till ände med `docker compose up` (väntar på Docker-miljö: minin)
+- [ ] Domän-/länkförslag och analysassistent i AI-tjänsten; pgvector-sök
 - [ ] Inre noden på Mac mini · yttre noden på Hetzner/Cloudflare
