@@ -13,7 +13,7 @@ import psycopg
 
 from app import extract, llm
 
-CHUNK_CHARS = int(os.environ.get("EVAL_CHUNK_CHARS", "8000"))  # prototypen: 15000; mindre = snabbare och säkrare på CPU/Apple Silicon
+CHUNK_CHARS = int(os.environ.get("EVAL_CHUNK_CHARS", "6000"))  # prototypen: 15000; mindre = snabbare och säkrare på CPU/Apple Silicon
 
 
 def pdf_to_text_with_pages(pdf: Path) -> str:
@@ -78,7 +78,14 @@ async def main() -> None:
             print(f"chunk {i}: {len(state['chunks'][str(i)])} krav (sparat)")
             continue
         tc = time.time()
-        res = await extract.extract(extract.ExtractRequest(text=chunk, document_name=args.source, language=args.language))
+        try:
+            res = await extract.extract(extract.ExtractRequest(text=chunk, document_name=args.source, language=args.language))
+        except Exception as e:   # en misslyckad chunk ska inte stoppa hela mätningen
+            print(f"chunk {i}/{len(parts)}: MISSLYCKADES ({e})")
+            state["chunks"][str(i)] = []
+            state.setdefault("failed", []).append(i)
+            partial.write_text(json.dumps(state, ensure_ascii=False))
+            continue
         state["chunks"][str(i)] = res["requirements"]
         state["seconds"] += time.time() - tc
         partial.write_text(json.dumps(state, ensure_ascii=False))
@@ -97,7 +104,7 @@ async def main() -> None:
         "facit": len(truth), "found": len(found), "hits": len(hits),
         "recall": round(len(hits) / max(len(truth), 1), 3), "precision": round(len(hits) / max(len(found), 1), 3),
         "page_accuracy": round(page_ok / max(len(hits), 1), 3), "text_match": round(text_ok / max(len(hits), 1), 3),
-        "seconds": round(elapsed, 1),
+        "seconds": round(elapsed, 1), "failed_chunks": state.get("failed", []), "chunk_chars": CHUNK_CHARS,
         "missed": sorted(set(truth_by_ref) - set(found))[:50],
         "extra": sorted(set(found) - set(truth_by_ref))[:50],
     }

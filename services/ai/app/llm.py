@@ -27,6 +27,7 @@ async def chat_json(system: str, user: str, schema: dict[str, Any], *, temperatu
         "model": MODEL,
         "temperature": temperature,
         "max_tokens": MAX_TOKENS,
+        "frequency_penalty": 0.2,   # dämpar upprepningsloopar i långa strängar
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         "response_format": {"type": "json_schema", "json_schema": {"name": "svar", "schema": schema, "strict": True}},
     }
@@ -37,10 +38,47 @@ async def chat_json(system: str, user: str, schema: dict[str, Any], *, temperatu
                 r = await c.post(f"{BASE_URL}/chat/completions", headers=_headers(), json=body)
                 r.raise_for_status()
                 content = r.json()["choices"][0]["message"]["content"]
-            return json.loads(content)
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError:
+                # Svaret slog i taket mitt i ett objekt: rädda de kompletta objekten
+                salvaged = salvage_requirements_json(content)
+                if salvaged is not None:
+                    return salvaged
+                raise
         except (httpx.TimeoutException, httpx.TransportError, json.JSONDecodeError) as e:
             last = e
     raise RuntimeError(f"modellanropet misslyckades efter omförsök: {last}")
+
+
+def salvage_requirements_json(content: str) -> dict[str, Any] | None:
+    """Plockar ut de kompletta objekten ur en avhuggen {"requirements":[{...},{...},{..."""
+    start = content.find("[")
+    if start < 0:
+        return None
+    depth = 0
+    in_str = False
+    esc = False
+    last_complete = -1
+    for i in range(start + 1, len(content)):
+        ch = content[i]
+        if in_str:
+            if esc: esc = False
+            elif ch == "\\": esc = True
+            elif ch == '"': in_str = False
+            continue
+        if ch == '"': in_str = True
+        elif ch == "{": depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                last_complete = i
+    if last_complete < 0:
+        return None
+    try:
+        return {"requirements": json.loads(content[start:last_complete + 1] + "]"), "truncated": True}
+    except json.JSONDecodeError:
+        return None
 
 
 async def chat_stream(messages: list[dict[str, str]], *, temperature: float = 0.2) -> AsyncIterator[str]:

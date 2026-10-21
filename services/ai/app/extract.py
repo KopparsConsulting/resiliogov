@@ -35,13 +35,13 @@ SCHEMA: dict[str, Any] = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "chapter_section": {"type": "string"},
-                    "description": {"type": "string"},
+                    "chapter_section": {"type": "string", "maxLength": 80},
+                    "description": {"type": "string", "maxLength": 2500},
                     "requirement_level": {"type": "string", "enum": ["mandatory", "recommended", "strategic"]},
                     "target_type": {"type": "string", "enum": ["facility", "system"]},
                     "domain_slug": {"type": ["string", "null"]},
                     "source_page": {"type": ["integer", "null"]},
-                    "source_excerpt": {"type": ["string", "null"]},
+                    "source_excerpt": {"type": ["string", "null"], "maxLength": 900},
                     "trigger_logic": {"type": ["object", "null"], "additionalProperties": True},
                 },
                 "required": ["chapter_section", "description", "requirement_level", "target_type",
