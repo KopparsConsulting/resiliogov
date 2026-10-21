@@ -4,3 +4,4 @@ dist/
 models/
 *.log
 .DS_Store
+apps/api/dist/

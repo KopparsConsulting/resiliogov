@@ -29,12 +29,31 @@ services:
       timeout: 3s
       retries: 20
 
+  # PostgREST: samma datagränssnitt som prototypen hade via Supabase, men mot
+  # vår egen databas. Nås bara via api (som lägger på JWT från sessionen).
+  postgrest:
+    image: postgrest/postgrest:v13.0.4
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://app_api:${APP_API_PASSWORD:?sätt APP_API_PASSWORD i .env}@db:5432/${PGDATABASE:-resiliogov}
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:?sätt JWT_SECRET i .env (minst 32 tecken)}
+      PGRST_DB_MAX_ROWS: 1000
+      PGRST_OPENAPI_MODE: disabled
+      PGRST_SERVER_PORT: 3001
+
   api:
     build: ./apps/api
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+      postgrest:
+        condition: service_started
       minio:
         condition: service_started
     environment:
@@ -46,7 +65,8 @@ services:
       OIDC_ISSUER: ${OIDC_ISSUER:-http://keycloak:8080/realms/resiliogov}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-resiliogov-web}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
-      SESSION_SECRET: ${SESSION_SECRET:?sätt SESSION_SECRET i .env}
+      JWT_SECRET: ${JWT_SECRET}
+      POSTGREST_URL: http://postgrest:3001
       S3_ENDPOINT: http://minio:9000
       S3_BUCKET: resiliogov
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-resiliogov}
