@@ -11,7 +11,6 @@ import asyncio
 import json
 import logging
 import os
-import re
 from pathlib import Path
 
 import psycopg
@@ -57,10 +56,6 @@ def pdf_to_pages(pdf: Path) -> dict[int, str]:
     return {n: "\n".join(t) for n, t in sorted(pages.items())}
 
 
-def _norm(ref: str) -> str:
-    return re.sub(r"\s+", " ", ref.strip().lower())
-
-
 async def run(req: IngestRequest) -> None:
     try:
         _update(req.job_id, status="parsing")
@@ -75,14 +70,13 @@ async def run(req: IngestRequest) -> None:
         _update(req.job_id, status="extracting", total_chunks=len(parts), done_chunks=0, total_pages=len(pages))
         log.info("jobb %s: %d sidor, %d chunkar", req.job_id, len(pages), len(parts))
 
-        found: dict[str, dict] = {}
+        found: list[dict] = []
         for i, chunk in enumerate(parts, 1):
             res = await extract.extract_chunk(chunk, req.document_name, req.domains, req.language)
-            for r in res["requirements"]:
-                found.setdefault(_norm(r["chapter_section"]), r)
+            found = extract.merge_requirements(found + res["requirements"])
             _update(req.job_id, done_chunks=i)
             log.info("jobb %s: chunk %d/%d, %d krav hittills", req.job_id, i, len(parts), len(found))
-        _update(req.job_id, status="done", result={"requirements": list(found.values()), "model": llm.MODEL,
+        _update(req.job_id, status="done", result={"requirements": found, "model": llm.MODEL,
                                                     "pages": len(pages), "chunks": len(parts)})
     except Exception as e:
         log.exception("jobb %s misslyckades", req.job_id)

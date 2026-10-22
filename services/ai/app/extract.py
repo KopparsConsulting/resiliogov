@@ -78,9 +78,12 @@ TILLGÄNGLIGA DOMÄNER:
 
 Vad räknas som ett krav:
 - Numrerade paragrafer/sektioner med "shall", "ska", "must", "doivent", "bör", "should"
-- I IEC 62443: varje CR/SR/EDR/HDR/NDR/FR med suffixet ".1 Requirement" är ETT krav
-- Requirement enhancements (numrerade (1), (2)…) är SEPARATA krav (t.ex. "CR 1.1 (1)", "CR 1.1 (2)")
-- Hoppa över "Rationale", "Security levels", innehållsförteckning, sidfötter
+- I IEC 62443: varje SR/CR/EDR/HDR/NDR med ".1 Requirement" är ETT krav; använd exakt den förkortning
+  dokumentet självt använder (SR i 62443-3-3, CR i 62443-4-2) och ta INTE med klausulnumret ("SR 1.1", inte "5.3 SR 1.1")
+- Requirement enhancements är SEPARATA krav med referens "SR 1.1 RE 1", "SR 1.1 RE 2" (RE = requirement enhancement)
+- INTE krav i IEC 62443: FR-rubriker (foundational requirements), "Rationale and supplemental guidance",
+  "Security levels"-stycken, tabeller som mappar krav mot SL-nivåer, innehållsförteckning, sidfötter.
+  Ett krav har alltid en egen kravtext med "shall" – en rad med bara rubrik och sidnummer är inget krav.
 
 Regler:
 1. Identifiera varje krav med exakt kapitel/paragraf-referens (t.ex. "4 kap. 3 §", "CR 1.1", "CR 1.2 (1)", "SR 2.3", "EDR 2.4 (1)")
@@ -183,16 +186,25 @@ async def extract(req: ExtractRequest) -> dict[str, Any]:
 async def extract_chunk(chunk: chunking.Chunk, document_name: str | None, domains: list[Domain], language: str | None) -> dict[str, Any]:
     """Extraktion av en chunk med kapitelkontext: kapitlet skickas med till modellen och
     referenser som ändå saknar kapitel ("19 §") fylls på. Sida saknas → chunkens första sida."""
+    if chunk.skip_reason:
+        return {"requirements": [], "model": llm.MODEL, "skipped": chunk.skip_reason}
     res = await extract(ExtractRequest(text=chunking.with_context(chunk), document_name=document_name,
                                        domains=domains, language=language))
-    out, seen = [], set()
     for r in res["requirements"]:
-        r["chapter_section"] = chunking.qualify_reference(r["chapter_section"], chunk)
+        r["chapter_section"] = chunking.canonical_reference(chunking.qualify_reference(r["chapter_section"], chunk))
         if not r.get("source_page"):
             r["source_page"] = chunk.first_page
-        if r["chapter_section"] in seen:
-            continue
-        seen.add(r["chapter_section"])
-        out.append(r)
-    res["requirements"] = out
+    res["requirements"] = merge_requirements(res["requirements"])
     return res
+
+
+def merge_requirements(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Deduplicerar på referens och behåller den fullständigaste beskrivningen –
+    inte den första (som kan vara en rad ur en innehållsförteckning eller tabell)."""
+    best: dict[str, dict[str, Any]] = {}
+    for r in items:
+        key = re.sub(r"\s+", " ", r["chapter_section"].strip().lower())
+        cur = best.get(key)
+        if cur is None or len(r.get("description") or "") > len(cur.get("description") or ""):
+            best[key] = r
+    return list(best.values())

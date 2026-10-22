@@ -30,7 +30,8 @@ def pdf_to_text_with_pages(pdf: Path) -> str:
 
 
 def norm(s: str) -> str:
-    return re.sub(r"\s+", " ", (s or "").lower()).strip()
+    # samma kanonisering på båda sidor så att "SR 1.1 (1)" och "SR 1.1 RE 1" räknas lika
+    return chunking.canonical_reference(s or "").lower()
 
 
 def facit(source_name: str) -> list[dict]:
@@ -92,11 +93,10 @@ async def main() -> None:
         state["chunks"][str(i)] = res["requirements"]
         state["seconds"] += time.time() - tc
         partial.write_text(json.dumps(state, ensure_ascii=False))
-        print(f"chunk {i}/{len(parts)}: {len(res['requirements'])} krav ({time.time() - tc:.0f} s)")
-    found: dict[str, dict] = {}
-    for i in sorted(state["chunks"], key=int):
-        for r in state["chunks"][i]:
-            found.setdefault(norm(r["chapter_section"]), r)
+        note = f" – hoppad: {res['skipped']}" if res.get("skipped") else ""
+        print(f"chunk {i}/{len(parts)}: {len(res['requirements'])} krav ({time.time() - tc:.0f} s){note}")
+    merged = extract.merge_requirements([r for i in sorted(state["chunks"], key=int) for r in state["chunks"][i]])
+    found: dict[str, dict] = {norm(r["chapter_section"]): r for r in merged}
     elapsed = state["seconds"]
 
     hits = [ref for ref in found if ref in truth_by_ref]
