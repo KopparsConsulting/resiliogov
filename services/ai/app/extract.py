@@ -190,11 +190,17 @@ async def extract_chunk(chunk: chunking.Chunk, document_name: str | None, domain
         return {"requirements": [], "model": llm.MODEL, "skipped": chunk.skip_reason}
     res = await extract(ExtractRequest(text=chunking.with_context(chunk), document_name=document_name,
                                        domains=domains, language=language))
+    kept, rejected = [], []
     for r in res["requirements"]:
         r["chapter_section"] = chunking.canonical_reference(chunking.qualify_reference(r["chapter_section"], chunk))
+        if not chunking.reference_in_text(r["chapter_section"], chunk):
+            rejected.append(r["chapter_section"])
+            continue
         if not r.get("source_page"):
             r["source_page"] = chunk.first_page
-    res["requirements"] = merge_requirements(res["requirements"])
+        kept.append(r)
+    res["requirements"] = merge_requirements(kept)
+    res["rejected"] = rejected
     return res
 
 

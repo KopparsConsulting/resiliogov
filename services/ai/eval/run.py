@@ -94,6 +94,8 @@ async def main() -> None:
         state["seconds"] += time.time() - tc
         partial.write_text(json.dumps(state, ensure_ascii=False))
         note = f" – hoppad: {res['skipped']}" if res.get("skipped") else ""
+        if res.get("rejected"):
+            note += f" – {len(res['rejected'])} påhittade referenser kastade"
         print(f"chunk {i}/{len(parts)}: {len(res['requirements'])} krav ({time.time() - tc:.0f} s){note}")
     merged = extract.merge_requirements([r for i in sorted(state["chunks"], key=int) for r in state["chunks"][i]])
     found: dict[str, dict] = {norm(r["chapter_section"]): r for r in merged}
