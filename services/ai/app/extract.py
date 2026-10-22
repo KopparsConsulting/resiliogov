@@ -81,6 +81,7 @@ Vad räknas som ett krav:
 - I IEC 62443: varje SR/CR/EDR/HDR/NDR med ".1 Requirement" är ETT krav; använd exakt den förkortning
   dokumentet självt använder (SR i 62443-3-3, CR i 62443-4-2) och ta INTE med klausulnumret ("SR 1.1", inte "5.3 SR 1.1")
 - Requirement enhancements är SEPARATA krav med referens "SR 1.1 RE 1", "SR 1.1 RE 2" (RE = requirement enhancement)
+- Beskrivning i IEC 62443 = kravets rubrik + punkt + kravtexten, t.ex. "Human user identification and authentication. The control system shall provide …"
 - INTE krav i IEC 62443: FR-rubriker (foundational requirements), "Rationale and supplemental guidance",
   "Security levels"-stycken, tabeller som mappar krav mot SL-nivåer, innehållsförteckning, sidfötter.
   Ett krav har alltid en egen kravtext med "shall" – en rad med bara rubrik och sidnummer är inget krav.
