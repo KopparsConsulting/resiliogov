@@ -19,4 +19,6 @@ for f in $(ls "$HERE"/migrations/*.sql 2>/dev/null | sort); do
     $PSQL -1 -f "$f" -c "INSERT INTO public.schema_migrations(name) VALUES ('$n')"
   fi
 done
+# PostgREST cachar schemat; be den ladda om så att nya tabeller/funktioner syns direkt
+$PSQL -c "NOTIFY pgrst, 'reload schema'" >/dev/null
 echo "databas klar: $DB"
