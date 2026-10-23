@@ -46,3 +46,13 @@ eller sätt `OLLAMA_MODELS=/Volumes/<disk>/ollama` i `~/.zshrc` innan
 
 Minin nås via Tailscale som `mini`. Webben blir http://mini:8080 från
 MacBooken och iPhonen. Inget exponeras utanför Tailscale-nätet.
+
+## Filarkivet: "EACCES: permission denied, mkdir '/data/files/…'"
+
+Volymen `files` skapades av en äldre image som root. Ge den till node-användaren en gång:
+
+```sh
+docker compose exec -u root api chown -R node:node /data/files
+```
+
+Nya installationer får rätt ägare automatiskt (Dockerfile skapar katalogen innan volymen monteras).
