@@ -21,13 +21,16 @@ import {
   LogOut,
   TestTube2,
   Briefcase,
-  Layers
+  Layers,
+  Inbox,
+  SlidersHorizontal
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import trafikverketLogo from '@/assets/trafikverket-logo.png';
 import trafikverketSymbol from '@/assets/trafikverket-symbol.png';
 import { useDomains } from '@/hooks/useDomains';
 import { useAuth } from '@/hooks/useAuth';
+import { useReviewQueueCounts } from '@/hooks/useReviewQueueCounts';
 import { Button } from '@/components/ui/button';
 import {
   Sidebar,
@@ -55,6 +58,7 @@ export function AppSidebar() {
   const { user, isAdmin, signOut } = useAuth();
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
+  const queue = useReviewQueueCounts();
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
@@ -112,6 +116,25 @@ export function AppSidebar() {
                   >
                     <FileText className="h-4 w-4" />
                     {!collapsed && <span className="font-medium">Kravdatabas</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to="/review"
+                    className="flex items-center gap-3"
+                    activeClassName="bg-accent text-accent-foreground"
+                  >
+                    <Inbox className="h-4 w-4" />
+                    {!collapsed && (
+                      <>
+                        <span className="font-medium">Granskning</span>
+                        {queue.total > 0 && (
+                          <span className="ml-auto text-xs tabular-nums text-muted-foreground">{queue.total}</span>
+                        )}
+                      </>
+                    )}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -340,6 +363,18 @@ export function AppSidebar() {
             <CollapsibleContent>
               <SidebarGroupContent>
                 <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to="/classification"
+                        className="flex items-center gap-3"
+                        activeClassName="bg-accent text-accent-foreground"
+                      >
+                        <SlidersHorizontal className="h-4 w-4" />
+                        {!collapsed && <span>Klassningsmodell</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink
