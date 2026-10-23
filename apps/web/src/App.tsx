@@ -37,6 +37,8 @@ import RequirementProfilesPage from "./pages/RequirementProfilesPage";
 import RequirementProfilePage from "./pages/RequirementProfilePage";
 import AdminPage from "./pages/AdminPage";
 import ActivityPage from "./pages/ActivityPage";
+import ReviewPage from "./pages/ReviewPage";
+import ClassificationPage from "./pages/ClassificationPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -73,6 +75,8 @@ function ProtectedRoutes() {
         <Route path="/requirements/print" element={<RequirementPrintPage />} />
         <Route path="/requirements/batch/:batchId" element={<RequirementBatchReviewPage />} />
         <Route path="/requirements/:id/review" element={<RequirementReviewPage />} />
+        <Route path="/review" element={<ReviewPage />} />
+        <Route path="/classification" element={<ClassificationPage />} />
         <Route path="/test-model" element={<TestModelPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/new" element={<CreateProject />} />

@@ -1,10 +1,9 @@
 import { useState, useMemo } from 'react';
-import { DomainSuggestionsCard } from '@/components/requirements/DomainSuggestionsCard';
 import { RepealedBadge } from '@/components/compliance/OutOfScopeBadge';
 import { useRequirements, RequirementWithDetails } from '@/hooks/useRequirements';
 import { RequirementImportWizard } from '@/components/requirements/RequirementImportWizard';
 import { RequirementLinkImportDialog } from '@/components/requirements/RequirementLinkImportDialog';
-import { RequirementLinkSuggestionsCard } from '@/components/requirements/RequirementLinkSuggestionsCard';
+import { RequirementLinksPanel } from '@/components/requirements/RequirementLinksPanel';
 import { useRequirementSources } from '@/hooks/useRequirementSources';
 import { useDomains } from '@/hooks/useDomains';
 import { useFacilities } from '@/hooks/useFacilities';
@@ -17,9 +16,8 @@ import { TriggerLogicEditor } from '@/components/requirements/TriggerLogicEditor
 import { SourceDocumentUpload } from '@/components/requirements/SourceDocumentUpload';
 import { RequirementReviewActions, ReviewStatusBadge } from '@/components/requirements/RequirementReviewActions';
 import { RequirementAuditHistory } from '@/components/requirements/RequirementAuditHistory';
-import { ClassificationMatrix } from '@/components/requirements/ClassificationMatrix';
 import { AddresseeBadges } from '@/components/requirements/AddresseeBadges';
-import { RequirementSourcesAdminCard } from '@/components/requirements/RequirementSourcesAdminCard';
+import { useReviewQueueCounts } from '@/hooks/useReviewQueueCounts';
 import { ADDRESSEES, ADDRESSEE_LABELS, TARGET_TYPE_LABELS, addressesAsset, effectiveAddressee } from '@/lib/requirementAddressee';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Search, ChevronDown, Building2, Server, Filter, CheckCircle2, AlertTriangle, Clock, FileText, ExternalLink, Upload, Printer, FileSpreadsheet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import type { Facility } from '@/types/compliance';
 import type { InformationSystem } from '@/types/system';
 
@@ -128,12 +126,15 @@ export default function RequirementsPage() {
   const { data: reviewMap = new Map() } = useReviewStatus();
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queue = useReviewQueueCounts();
   const [search, setSearch] = useState('');
   const [sourceFilter, setSourceFilter] = useState('all');
   const [domainFilter, setDomainFilter] = useState('all');
   const [levelFilter, setLevelFilter] = useState('all');
   const [targetFilter, setTargetFilter] = useState('all');
-  const [reviewFilter, setReviewFilter] = useState('all');
+  // ?review=todo m.fl. – så att andra sidor kan länka till en filtrerad vy
+  const [reviewFilter, setReviewFilter] = useState(searchParams.get('review') ?? 'all');
   const [addresseeFilter, setAddresseeFilter] = useState('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -215,9 +216,14 @@ export default function RequirementsPage() {
       <RequirementImportWizard open={importOpen} onOpenChange={setImportOpen} />
       <RequirementLinkImportDialog open={linkImportOpen} onOpenChange={setLinkImportOpen} />
 
-      <RequirementSourcesAdminCard />
-      <DomainSuggestionsCard />
-      <RequirementLinkSuggestionsCard />
+      {queue.domains + queue.links > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border px-4 py-2 text-sm">
+          <span className="text-muted-foreground">
+            {queue.domains} domänförslag och {queue.links} kravlänkar väntar på granskning.
+          </span>
+          <Link to="/review?tab=domaner" className="font-medium underline-offset-2 hover:underline">Till granskningen →</Link>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
@@ -230,8 +236,6 @@ export default function RequirementsPage() {
         <Card className="border-status-success/30 dark:border-status-success/30"><CardContent className="p-3 text-center flex flex-col items-center"><div className="flex items-center gap-1"><CheckCircle2 className="h-4 w-4 text-status-success" /><p className="text-lg font-bold text-status-success">{stats.reviewStats.approved}</p></div><p className="text-xs text-muted-foreground">Godkända</p></CardContent></Card>
         <Card className="border-destructive/30 dark:border-destructive/30"><CardContent className="p-3 text-center flex flex-col items-center"><div className="flex items-center gap-1"><AlertTriangle className="h-4 w-4 text-destructive" /><p className="text-lg font-bold text-destructive">{stats.reviewStats.flagged}</p></div><p className="text-xs text-muted-foreground">Flaggade{stats.reviewStats.changed > 0 ? ` · ${stats.reviewStats.changed} ändrade` : ''}</p></CardContent></Card>
       </div>
-
-      <ClassificationMatrix requirements={requirements} />
 
       {/* Filters */}
       <Card>
@@ -442,6 +446,7 @@ export default function RequirementsPage() {
                                 </div>
                               ) : null;
                             })()}
+                            <RequirementLinksPanel requirementId={r.id} />
                             {addressesAsset(r.source_addressee, r.target_type) ? <MatchInfo req={r} facilities={facilities as Facility[]} systems={systems as InformationSystem[]} /> : (
                               <p className="text-xs text-muted-foreground">
                                 {ADDRESSEE_LABELS[effectiveAddressee(r.source_addressee, r.target_type)]} – matchas inte mot anläggningar, system eller komponenter och skapar inga bedömningsposter.

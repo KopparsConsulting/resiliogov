@@ -14,6 +14,7 @@ import {
 
 interface Props {
   requirements: RequirementWithDetails[];
+  defaultOpen?: boolean;
 }
 
 const EXAMPLES: Record<number, string> = {
@@ -24,8 +25,8 @@ const EXAMPLES: Record<number, string> = {
   5: 'Nationellt kritisk anläggning.',
 };
 
-export function ClassificationMatrix({ requirements }: Props) {
-  const [open, setOpen] = useState(false);
+export function ClassificationMatrix({ requirements, defaultOpen = false }: Props) {
+  const [open, setOpen] = useState(defaultOpen);
   const { data: mapping } = useClassSlMapping();
 
   const rows = useMemo(() => {

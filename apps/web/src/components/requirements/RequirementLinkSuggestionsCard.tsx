@@ -45,7 +45,13 @@ function RequirementRef({ r }: { r: LinkedRequirement | null }) {
  * Granskningskö för kravlänkar (lag → föreskrift → standard). En länk blir
  * gällande först när en administratör godkänt den; beslutet loggas.
  */
-export function RequirementLinkSuggestionsCard() {
+interface Props {
+  /** 'page' = på granskningssidan: hela listan utan inre scroll, tomt läge visas */
+  layout?: 'card' | 'page';
+}
+
+export function RequirementLinkSuggestionsCard({ layout = 'card' }: Props = {}) {
+  const onPage = layout === 'page';
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [batch, setBatch] = useState<string>(ALL);
@@ -76,7 +82,12 @@ export function RequirementLinkSuggestionsCard() {
     return [...counts.entries()];
   }, [suggestions]);
 
-  if (!isAdmin || suggestions.length === 0) return null;
+  if (!isAdmin) {
+    return onPage ? <p className="text-sm text-muted-foreground">Granskning av förslag kräver administratörsbehörighet.</p> : null;
+  }
+  if (suggestions.length === 0) {
+    return onPage ? <p className="text-sm text-muted-foreground">Inga förslag väntar på granskning.</p> : null;
+  }
 
   const visible = batch === ALL ? suggestions : suggestions.filter((s) => s.suggested_by === batch);
 
@@ -110,7 +121,7 @@ export function RequirementLinkSuggestionsCard() {
   };
 
   return (
-    <Card className="mb-6">
+    <Card className={onPage ? undefined : 'mb-6'}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <Link2 className="h-5 w-5 text-primary" />
@@ -137,7 +148,7 @@ export function RequirementLinkSuggestionsCard() {
           </Button>
         </div>
 
-        <div className="max-h-[520px] overflow-y-auto divide-y border rounded-md">
+        <div className={`divide-y border rounded-md ${onPage ? '' : 'max-h-[520px] overflow-y-auto'}`}>
           {visible.map((s) => {
             const cov = coverage[s.id] ?? s.coverage;
             return (

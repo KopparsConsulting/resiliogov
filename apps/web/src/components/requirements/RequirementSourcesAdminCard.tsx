@@ -16,10 +16,10 @@ import {
 } from '@/lib/requirementAddressee';
 
 /** Administration of recipient and measurement scale per regulatory source. */
-export function RequirementSourcesAdminCard() {
+export function RequirementSourcesAdminCard({ defaultOpen = false }: { defaultOpen?: boolean } = {}) {
   const { data: sources = [] } = useRequirementSources();
   const updateSource = useUpdateRequirementSource();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
