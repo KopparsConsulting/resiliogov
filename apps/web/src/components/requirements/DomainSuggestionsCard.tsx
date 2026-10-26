@@ -43,7 +43,13 @@ function shortSource(name?: string | null): string {
  * Granskningskö för domänförslag. Ett förslag blir gällande först när en
  * administratör godkänt det; beslutet loggas som en kravändring.
  */
-export function DomainSuggestionsCard() {
+interface Props {
+  /** 'page' = på granskningssidan: hela listan utan inre scroll, tomt läge visas */
+  layout?: 'card' | 'page';
+}
+
+export function DomainSuggestionsCard({ layout = 'card' }: Props = {}) {
+  const onPage = layout === 'page';
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -77,7 +83,12 @@ export function DomainSuggestionsCard() {
   const visible = filter === 'alla' ? suggestions : suggestions.filter((s) => s.confidence === filter);
   const highUnchanged = suggestions.filter((s) => s.confidence === 'hög' && !overrides[s.id]);
 
-  if (!isAdmin || suggestions.length === 0) return null;
+  if (!isAdmin) {
+    return onPage ? <p className="text-sm text-muted-foreground">Granskning av förslag kräver administratörsbehörighet.</p> : null;
+  }
+  if (suggestions.length === 0) {
+    return onPage ? <p className="text-sm text-muted-foreground">Inga förslag väntar på granskning.</p> : null;
+  }
 
   const refresh = () => {
     for (const key of ['domain-suggestions', 'requirements-explorer', 'domain_compliance', 'requirements_by_domain']) {
@@ -103,7 +114,7 @@ export function DomainSuggestionsCard() {
   };
 
   return (
-    <Card className="mb-6">
+    <Card className={onPage ? undefined : 'mb-6'}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <Sparkles className="h-5 w-5 text-primary" />
@@ -129,7 +140,7 @@ export function DomainSuggestionsCard() {
           </Button>
         </div>
 
-        <div className="max-h-[520px] overflow-y-auto divide-y border rounded-md">
+        <div className={`divide-y border rounded-md ${onPage ? '' : 'max-h-[520px] overflow-y-auto'}`}>
           {visible.map((s) => {
             const chosen = overrides[s.id] ?? s.domain_id;
             return (
